@@ -1,0 +1,76 @@
+2026-07-21 20:59:30,058 - INFO - 🚀 Starting A.R.I.A. Local Business Pipeline (Max Workers: 3)
+2026-07-21 20:59:30,059 - INFO - 🛡️ SAFE MODE: AUTO_SEND_ENABLED is False. Emails will be generated but NOT sent.
+2026-07-21 20:59:30,059 - INFO - ✅ Created sample 'leads_local.csv'. Add your real local leads and run again.
+2026-07-21 20:59:46,881 - INFO - 🚀 Starting A.R.I.A. Local Business Pipeline (Max Workers: 3)
+2026-07-21 20:59:46,881 - INFO - 🛡️ SAFE MODE: AUTO_SEND_ENABLED is False. Emails will be generated but NOT sent.
+2026-07-21 20:59:46,891 - INFO - Starting processing for: Kerala Travel Co.
+2026-07-21 20:59:46,892 - INFO - Starting processing for: Spice & Gourmet Distributors
+2026-07-21 20:59:46,893 - INFO - Starting processing for: Cherthala Tech Park HR
+2026-07-21 20:59:48,374 - INFO - OpenAI: Successfully validated tool 'tavily_search'
+2026-07-21 20:59:48,397 - INFO - OpenAI: Successfully validated tool 'tavily_search'
+2026-07-21 20:59:48,638 - INFO - OpenAI: Successfully validated tool 'tavily_search'
+2026-07-21 20:59:50,970 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 20:59:51,052 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 20:59:51,284 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 20:59:53,583 - INFO - OpenAI: Successfully validated tool 'tavily_search'
+2026-07-21 20:59:54,060 - INFO - OpenAI: Successfully validated tool 'tavily_search'
+2026-07-21 20:59:54,115 - INFO - OpenAI: Successfully validated tool 'tavily_search'
+2026-07-21 20:59:55,200 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 20:59:55,843 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 20:59:55,897 - INFO - OpenAI API usage: {'prompt_tokens': 855, 'completion_tokens': 89, 'total_tokens': 944, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 20:59:56,484 - INFO - OpenAI: Successfully validated tool 'tavily_search'
+2026-07-21 20:59:56,642 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 20:59:56,651 - INFO - OpenAI API usage: {'prompt_tokens': 1125, 'completion_tokens': 143, 'total_tokens': 1268, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 20:59:57,908 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 20:59:57,910 - INFO - OpenAI API usage: {'prompt_tokens': 403, 'completion_tokens': 148, 'total_tokens': 551, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 20:59:59,031 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 20:59:59,043 - INFO - OpenAI API usage: {'prompt_tokens': 435, 'completion_tokens': 131, 'total_tokens': 566, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 20:59:59,872 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 20:59:59,891 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 20:59:59,892 - INFO - OpenAI API usage: {'prompt_tokens': 1813, 'completion_tokens': 235, 'total_tokens': 2048, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 20:59:59,900 - INFO - OpenAI API usage: {'prompt_tokens': 489, 'completion_tokens': 165, 'total_tokens': 654, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 20:59:59,927 - INFO - ✅ Success: Kerala Travel Co. (Gmail: Skipped (AUTO_SEND=False))
+2026-07-21 21:00:00,632 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 21:00:00,640 - INFO - OpenAI API usage: {'prompt_tokens': 525, 'completion_tokens': 146, 'total_tokens': 671, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 21:00:00,679 - INFO - ✅ Success: Cherthala Tech Park HR (Gmail: Skipped (AUTO_SEND=False))
+2026-07-21 21:00:02,281 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 21:00:02,288 - INFO - OpenAI API usage: {'prompt_tokens': 540, 'completion_tokens': 142, 'total_tokens': 682, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 21:00:06,339 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 21:00:06,345 - INFO - OpenAI API usage: {'prompt_tokens': 628, 'completion_tokens': 157, 'total_tokens': 785, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 21:00:06,382 - INFO - ✅ Success: Spice & Gourmet Distributors (Gmail: Skipped (AUTO_SEND=False))
+2026-07-21 21:00:06,384 - INFO - 🎉 Pipeline complete! Results saved to 'results_local.csv'
+2026-07-21 21:04:53,108 - INFO - 🚀 Starting A.R.I.A. Local Business Pipeline (Max Workers: 3)
+2026-07-21 21:04:53,108 - WARNING - ⚠️ AUTO_SEND_ENABLED is TRUE. Emails will be sent.
+2026-07-21 21:04:53,109 - INFO - Starting processing for: Kerala Travel Co.
+2026-07-21 21:04:53,109 - INFO - Starting processing for: Spice & Gourmet Distributors
+2026-07-21 21:04:53,110 - INFO - Starting processing for: Cherthala Tech Park HR
+2026-07-21 21:04:54,585 - INFO - OpenAI: Successfully validated tool 'tavily_search'
+2026-07-21 21:04:54,908 - INFO - OpenAI: Successfully validated tool 'tavily_search'
+2026-07-21 21:04:55,214 - INFO - OpenAI: Successfully validated tool 'tavily_search'
+2026-07-21 21:04:57,593 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 21:04:58,150 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 21:04:58,154 - INFO - OpenAI API usage: {'prompt_tokens': 327, 'completion_tokens': 89, 'total_tokens': 416, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 21:04:58,595 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 21:04:58,614 - INFO - OpenAI API usage: {'prompt_tokens': 385, 'completion_tokens': 143, 'total_tokens': 528, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 21:05:00,112 - INFO - OpenAI: Successfully validated tool 'tavily_search'
+2026-07-21 21:05:00,392 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 21:05:00,449 - INFO - OpenAI API usage: {'prompt_tokens': 403, 'completion_tokens': 162, 'total_tokens': 565, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 21:05:00,789 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 21:05:00,791 - INFO - OpenAI API usage: {'prompt_tokens': 435, 'completion_tokens': 156, 'total_tokens': 591, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 21:05:02,141 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 21:05:02,146 - INFO - OpenAI API usage: {'prompt_tokens': 1618, 'completion_tokens': 117, 'total_tokens': 1735, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 21:05:02,429 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 21:05:02,431 - INFO - OpenAI API usage: {'prompt_tokens': 502, 'completion_tokens': 186, 'total_tokens': 688, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 21:05:02,452 - INFO - Attempting to send email to sts261261@gmail.com...
+2026-07-21 21:05:02,701 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 21:05:02,705 - INFO - OpenAI API usage: {'prompt_tokens': 550, 'completion_tokens': 170, 'total_tokens': 720, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 21:05:02,730 - INFO - Attempting to send email to sts261261@gmail.com...
+2026-07-21 21:05:04,914 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 21:05:04,915 - INFO - OpenAI API usage: {'prompt_tokens': 422, 'completion_tokens': 142, 'total_tokens': 564, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 21:05:06,746 - INFO - ✅ Success: Cherthala Tech Park HR (Gmail: Sent)
+2026-07-21 21:05:07,011 - INFO - ✅ Success: Kerala Travel Co. (Gmail: Sent)
+2026-07-21 21:05:10,742 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-21 21:05:10,749 - INFO - OpenAI API usage: {'prompt_tokens': 510, 'completion_tokens': 157, 'total_tokens': 667, 'cached_prompt_tokens': 0, 'reasoning_tokens': 0}
+2026-07-21 21:05:10,784 - INFO - Attempting to send email to sts261261@gmail.com...
+2026-07-21 21:05:14,658 - INFO - ✅ Success: Spice & Gourmet Distributors (Gmail: Sent)
+2026-07-21 21:05:14,660 - INFO - 🎉 Pipeline complete! Results saved to 'results_local.csv'
