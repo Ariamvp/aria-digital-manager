@@ -292,7 +292,7 @@ with st.sidebar:
     st.markdown("- Agents: 11 Ready")
     st.markdown("- Status:  Online")
 
-tab1, tab2, tab3, tab4 = st.tabs(["🤝 Vendor Negotiation", "🔄 Content Repurposing", "🎯 Local Lead Gen"])
+tab1, tab2, tab3, tab4 = st.tabs(["🤝 Vendor Negotiation", "🔄 Content Repurposing", "🎯 Local Lead Gen", "📩 Lead Response & Assets"])
 
 # --- TAB 1: VENDOR NEGOTIATION ---
 with tab1:
