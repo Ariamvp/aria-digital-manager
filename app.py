@@ -45,6 +45,45 @@ BUSINESS_PITCHES = {
 }
 
 # ==========================================
+# AUTHENTICATION CHECK
+# ==========================================
+def check_password():
+    """Returns `True` if the user had the correct password."""
+    
+    def password_entered():
+        """Checks whether a password entered by the user is correct."""
+        # Use os.getenv to read from Railway environment variables!
+        correct_password = os.getenv("APP_PASSWORD", "admin123")
+        if st.session_state["password"] == correct_password:
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]
+        else:
+            st.session_state["password_correct"] = False
+
+    if "password_correct" not in st.session_state:
+        st.text_input(
+            "Password:",
+            type="password",
+            on_change=password_entered,
+            key="password"
+        )
+        return False
+    elif not st.session_state["password_correct"]:
+        st.text_input(
+            "Password:",
+            type="password",
+            on_change=password_entered,
+            key="password"
+        )
+        st.error("😕 Password incorrect")
+        return False
+    else:
+        return True
+
+# This stops the app from loading the rest of the UI if the password is wrong
+if not check_password():
+    st.stop()
+# ==========================================
 # 2. HELPER FUNCTIONS
 # ==========================================
 def save_and_notify_telegram(to_address, subject, body, task_type="Draft"):
