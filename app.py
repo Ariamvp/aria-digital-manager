@@ -231,7 +231,7 @@ def create_local_lead_crew():
     qa = Agent(
         role="QA Director",
         goal="Validate tone, length, and output strict JSON.",
-        backstory="Ensures emails sound like a genuine local business owner.",
+        backstory="Ensuring emails sound like a genuine local business owner.",
         llm=llm, verbose=False
     )
 
@@ -250,17 +250,17 @@ def create_response_crew():
     llm = LLM(model="gpt-4o")
     
     formatter = Agent(
-        role="Professional Profile Formatter",
-        goal="Transform raw business details into a clean, structured, and highly professional property profile document.",
-        backstory="You are an expert hospitality consultant. You take messy, raw notes about a property and format them into a pristine, easy-to-read document that answers specific client requests.",
+        role="Hospitality Documentation Expert",
+        goal="Create a professional property profile document from raw notes",
+        backstory="Expert at creating hotel property profiles",
         llm=llm,
         verbose=False
     )
     
     drafter = Agent(
-        role="Senior Partnership Manager",
-        goal="Draft a warm, professional, and concise email reply that acknowledges the lead's specific requests and introduces the attached profile.",
-        backstory="You are a master of B2B hospitality partnerships. You write emails that are polite, enthusiastic, and drive the conversation forward to a signed contract.",
+        role="B2B Partnership Email Specialist",
+        goal="Write personalized partnership emails",
+        backstory="Expert at writing warm, personalized B2B emails",
         llm=llm,
         verbose=False
     )
@@ -268,67 +268,60 @@ def create_response_crew():
     return Crew(agents=[formatter, drafter],
                 tasks=[
                     Task(description="""
-                    Review the incoming request: {incoming_request}
+                    Create a professional property profile from these details: {raw_business_details}
                     
-                    Step 1: Extract the lead's name and company from the signature of the incoming request.
+                    Format it EXACTLY like this:
                     
-                    Step 2: Format the following raw business details: {raw_business_details} 
-                    into a PROFESSIONAL PROPERTY PROFILE document with these exact sections:
+                    # PROPERTY PROFILE: MYBAE Stay Inn
                     
-                    **PROPERTY PROFILE: MYBAE Stay Inn**
+                    ## 📍 Location
+                    [Extract location info]
                     
-                    📍 **Location & Introduction**
-                    [Extract from raw details]
+                    ## 🛏️ Rooms
+                    [List room types and capacity]
                     
-                    🛏️ **Room Categories & Inventory**
-                    [List each room type with capacity]
+                    ## 💰 Rates
+                    [List all pricing]
                     
-                    💰 **Tariff Details**
-                    - FIT Rates: [List each room type price]
-                    - Group Rates: [Mention discounts]
+                    ## 🍽️ Food
+                    [Meal options]
                     
-                    🍽️ **Meal Plans & Dining**
-                    [What's available]
+                    ## ✨ Amenities
+                    [List amenities]
                     
-                    ✨ **Amenities & Facilities**
-                    [List all amenities]
+                    ## 📸 Photos
+                    [Photo links]
                     
-                    📸 **Photo Gallery**
-                    [Photo links/Instagram]
+                    ##  Offers
+                    [Special offers]
                     
-                    🌟 **Special Offers & Value Adds**
-                    [Any discounts or perks]
-                    
-                    🗺️ **Nearby Attractions**
-                    [Location highlights]
-                    
-                    Output this as clean, professional Markdown that can be copied to Notion or saved as PDF.
+                    ## 🗺️ Nearby
+                    [Nearby attractions]
                     """, 
-                    expected_output="Complete formatted Property Profile in Markdown with all 8 sections clearly labeled", 
+                    expected_output="Property profile in markdown format with all 8 sections", 
                     agent=formatter),
                     
                     Task(description="""
-                    Now draft a REPLY EMAIL with these strict rules:
+                    Write a reply email to this inquiry: {incoming_request}
                     
-                    1. Address the lead BY NAME (you must extract this from the incoming request signature).
-                    2. Thank them SPECIFICALLY for their interest in MYBAE Stay Inn.
-                    3. Acknowledge their request for the specific items they mentioned in their email.
-                    4. Mention that the detailed Property Profile is provided below/attached.
-                    5. Express enthusiasm for a potential partnership.
-                    6. Keep it warm, professional, and under 150 words.
-                    7. Sign off exactly as: 
-                       Warm regards,
-                       Sujesh T S
-                       MYBAE Group
-                       sts261261@gmail.com | 9048081475
-                       
-                    The email MUST feel PERSONALIZED, not generic. Reference something specific from their email.
+                    CRITICAL RULES:
+                    1. Find the sender's NAME from the signature (look for names like "Rajalaxmi", "Regards,", "Best," etc.)
+                    2. Find their COMPANY name
+                    3. Start with: "Dear [Actual Name],"
+                    4. Mention their company by name
+                    5. Reference something specific from their email
+                    6. Keep it under 150 words
+                    7. End with:
+                    Warm regards,
+                    Sujesh T S
+                    MYBAE Group
+                    sts261261@gmail.com | 9048081475
                     """, 
-                    expected_output="Personalized email reply draft with lead's actual name and specific acknowledgments", 
+                    expected_output="Personalized email with actual name and company", 
                     agent=drafter)
                 ], 
                 process=Process.sequential, 
-                verbose=False)
+                verbose=True)
 
 # ==========================================
 # 7. STREAMLIT UI
@@ -346,7 +339,7 @@ with st.sidebar:
     st.markdown("- Agents: 13 Ready")
     st.markdown("- Status:  Online")
 
-tab1, tab2, tab3, tab4 = st.tabs(["🤝 Vendor Negotiation", "🔄 Content Repurposing", "🎯 Local Lead Gen", "📩 Lead Response & Assets"])
+tab1, tab2, tab3, tab4 = st.tabs([" Vendor Negotiation", "🔄 Content Repurposing", "🎯 Local Lead Gen", " Lead Response & Assets"])
 
 # --- TAB 1: VENDOR NEGOTIATION ---
 with tab1:
@@ -361,7 +354,7 @@ with tab1:
             v_date = st.text_input("Contract End Date", placeholder="2026-12-31")
             u_email = st.text_input("Your Email (to receive draft) *", value=os.getenv("GMAIL_ADDRESS", ""))
         
-        if st.form_submit_button("🚀 Generate Negotiation Draft", type="primary", use_container_width=True):
+        if st.form_submit_button(" Generate Negotiation Draft", type="primary", use_container_width=True):
             if not all([v_name, v_service, v_cost, u_email]):
                 st.error("Please fill in all required fields.")
             else:
@@ -412,7 +405,7 @@ with tab2:
                                 st.subheader("📧 Newsletter Email")
                                 st.markdown(parsed.get('newsletter', 'N/A'))
                             with col_b:
-                                st.subheader("🐦 Twitter/X Thread")
+                                st.subheader(" Twitter/X Thread")
                                 st.markdown(parsed.get('twitter', 'N/A'))
                                 st.subheader("📸 Instagram Caption")
                                 st.markdown(parsed.get('instagram', 'N/A'))
@@ -463,7 +456,7 @@ with tab3:
             with col2:
                 search_location = st.text_input("Target Location to Search *", value=default_loc, placeholder="e.g., Kochi, Alappuzha, Cherthala")
             
-            submit_discovery = st.form_submit_button("🔍 Discover & Generate Outreach", type="primary", use_container_width=True)
+            submit_discovery = st.form_submit_button(" Discover & Generate Outreach", type="primary", use_container_width=True)
         
         if submit_discovery:
             is_valid = True
@@ -635,10 +628,10 @@ with tab4:
     st.markdown("Paste the lead's email and your raw business details. A.R.I.A. will format a professional profile and draft the perfect reply.")
     
     with st.form("response_form"):
-        incoming_request = st.text_area("📥 Paste Incoming Lead Request *", height=150, placeholder="e.g., Dear Mr. Rahul, Thank you for reaching out... Could you please share property profile, tariffs, photos...")
+        incoming_request = st.text_area(" Paste Incoming Lead Request *", height=150, placeholder="e.g., Dear Mr. Rahul, Thank you for reaching out... Could you please share property profile, tariffs, photos...")
         
         st.markdown("---")
-        st.markdown("#### 🏢 Your Raw Business Details")
+        st.markdown("####  Your Raw Business Details")
         st.caption("Don't worry about formatting. Just paste your messy notes, links, or bullet points below. A.R.I.A. will clean it up.")
         raw_business_details = st.text_area("Raw Details *", height=200, placeholder="""e.g., 
 - Name: MYBAE Stay Inn, Alappuzha (near Kreupasanam Marine Shrine)
@@ -653,9 +646,9 @@ with tab4:
     
     if submit_response:
         if not incoming_request or not raw_business_details:
-            st.error("Please fill in both the incoming request and your business details.")
+            st.error("Please fill in both fields.")
         else:
-            with st.spinner("🤖 A.R.I.A. is formatting your assets and drafting the reply..."):
+            with st.spinner("🤖 A.R.I.A. is working..."):
                 try:
                     crew = create_response_crew()
                     result = crew.kickoff(inputs={
@@ -663,30 +656,11 @@ with tab4:
                         "raw_business_details": raw_business_details
                     })
                     
-                    st.success("✅ Response Generated Successfully!")
+                    st.success("✅ Generated!")
                     
-                    # Smart splitting: Look for common email indicators to separate the profile from the email
-                    raw_text = result.raw
-                    email_start_indices = [raw_text.find("Subject:"), raw_text.find("Dear "), raw_text.find("Hi ")]
-                    valid_indices = [i for i in email_start_indices if i != -1]
-                    
-                    if valid_indices:
-                        split_point = min(valid_indices)
-                        profile_section = raw_text[:split_point].strip()
-                        email_section = raw_text[split_point:].strip()
-                    else:
-                        profile_section = raw_text
-                        email_section = raw_text
-                    
-                    st.subheader("📋 Formatted Property Profile")
-                    st.markdown(profile_section)
-                    st.info("💡 **Pro Tip:** Copy this profile and paste it directly into Notion, or save it as a PDF to attach to your email!")
-                    
-                    st.divider()
-                    
-                    st.subheader("📧 Drafted Email Reply")
-                    st.markdown(email_section)
+                    # Show full raw output for debugging
+                    st.markdown(result.raw)
                     
                 except Exception as e:
-                    st.error(f"Error generating response: {e}")
+                    st.error(f"Error: {e}")
                     logger.error(f"Response crew error: {e}")
