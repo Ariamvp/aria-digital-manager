@@ -52,7 +52,6 @@ def check_password():
     
     def password_entered():
         """Checks whether a password entered by the user is correct."""
-        # Use os.getenv to read from Railway environment variables!
         correct_password = os.getenv("APP_PASSWORD", "admin123")
         if st.session_state["password"] == correct_password:
             st.session_state["password_correct"] = True
@@ -80,9 +79,9 @@ def check_password():
     else:
         return True
 
-# This stops the app from loading the rest of the UI if the password is wrong
 if not check_password():
     st.stop()
+
 # ==========================================
 # 2. HELPER FUNCTIONS
 # ==========================================
@@ -110,7 +109,6 @@ def save_and_notify_telegram(to_address, subject, body, task_type="Draft"):
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     
-    # Truncate body for Telegram message preview
     body_preview = body[:250] + "..." if len(body) > 250 else body
     
     message = f"🤖 *A.R.I.A. Approval Required*\n\n*Type:* {task_type}\n*To:* {to_address}\n*Subject:* {subject}\n\n*Preview:*\n_{body_preview}_\n\nReply with: `send {task_id}` to approve and send."
@@ -254,7 +252,7 @@ def create_response_crew():
     formatter = Agent(
         role="Professional Profile Formatter",
         goal="Transform raw business details into a clean, structured, and highly professional property profile document.",
-        backstory="You are an expert hospitality consultant. You take messy, raw notes about a property and format them into a pristine, easy-to-read document that answers specific client requests (like tariffs, amenities, photos links, etc.).",
+        backstory="You are an expert hospitality consultant. You take messy, raw notes about a property and format them into a pristine, easy-to-read document that answers specific client requests.",
         llm=llm,
         verbose=False
     )
@@ -269,8 +267,65 @@ def create_response_crew():
 
     return Crew(agents=[formatter, drafter],
                 tasks=[
-                    Task(description="Review the incoming request: {incoming_request}. Format the following raw business details: {raw_business_details} into a clean, structured document addressing: 1. Property Profile, 2. Room Categories/Inventory, 3. Photo Links, 4. Tariffs (FIT/Group), 5. Meal Plans, 6. Amenities, 7. Location/Attractions, 8. Special Offers. Output as clean Markdown.", expected_output="Formatted Property Profile in Markdown", agent=formatter),
-                    Task(description="Draft a reply email to the lead. Acknowledge their specific request. Mention that the detailed Property Profile is provided below (or attached). Keep it under 150 words, warm, and professional. Sign off as: Sujesh T S, MYBAE Group, sts261261@gmail.com, 9048081475.", expected_output="Email Reply Draft", agent=drafter)
+                    Task(description="""
+                    Review the incoming request: {incoming_request}
+                    
+                    Step 1: Extract the lead's name and company from the signature of the incoming request.
+                    
+                    Step 2: Format the following raw business details: {raw_business_details} 
+                    into a PROFESSIONAL PROPERTY PROFILE document with these exact sections:
+                    
+                    **PROPERTY PROFILE: MYBAE Stay Inn**
+                    
+                    📍 **Location & Introduction**
+                    [Extract from raw details]
+                    
+                    🛏️ **Room Categories & Inventory**
+                    [List each room type with capacity]
+                    
+                    💰 **Tariff Details**
+                    - FIT Rates: [List each room type price]
+                    - Group Rates: [Mention discounts]
+                    
+                    🍽️ **Meal Plans & Dining**
+                    [What's available]
+                    
+                    ✨ **Amenities & Facilities**
+                    [List all amenities]
+                    
+                    📸 **Photo Gallery**
+                    [Photo links/Instagram]
+                    
+                    🌟 **Special Offers & Value Adds**
+                    [Any discounts or perks]
+                    
+                    🗺️ **Nearby Attractions**
+                    [Location highlights]
+                    
+                    Output this as clean, professional Markdown that can be copied to Notion or saved as PDF.
+                    """, 
+                    expected_output="Complete formatted Property Profile in Markdown with all 8 sections clearly labeled", 
+                    agent=formatter),
+                    
+                    Task(description="""
+                    Now draft a REPLY EMAIL with these strict rules:
+                    
+                    1. Address the lead BY NAME (you must extract this from the incoming request signature).
+                    2. Thank them SPECIFICALLY for their interest in MYBAE Stay Inn.
+                    3. Acknowledge their request for the specific items they mentioned in their email.
+                    4. Mention that the detailed Property Profile is provided below/attached.
+                    5. Express enthusiasm for a potential partnership.
+                    6. Keep it warm, professional, and under 150 words.
+                    7. Sign off exactly as: 
+                       Warm regards,
+                       Sujesh T S
+                       MYBAE Group
+                       sts261261@gmail.com | 9048081475
+                       
+                    The email MUST feel PERSONALIZED, not generic. Reference something specific from their email.
+                    """, 
+                    expected_output="Personalized email reply draft with lead's actual name and specific acknowledgments", 
+                    agent=drafter)
                 ], 
                 process=Process.sequential, 
                 verbose=False)
@@ -281,15 +336,14 @@ def create_response_crew():
 st.title("🤖 A.R.I.A. Command Center")
 st.markdown("Your Autonomous Revenue & Intelligence Agent. Choose your module below.")
 
-# Global Sidebar Settings
 with st.sidebar:
     st.header("⚙️ Global Settings")
     st.info("Settings apply to all modules")
     auto_email_global = st.checkbox("Send drafts to Telegram for approval", value=True, help="Sends drafts to your Telegram bot. You must reply 'send [ID]' to actually send the email.")
     st.divider()
     st.markdown("### 📊 Quick Stats")
-    st.markdown("- Pipelines: 3 Active")
-    st.markdown("- Agents: 11 Ready")
+    st.markdown("- Pipelines: 4 Active")
+    st.markdown("- Agents: 13 Ready")
     st.markdown("- Status:  Online")
 
 tab1, tab2, tab3, tab4 = st.tabs(["🤝 Vendor Negotiation", "🔄 Content Repurposing", "🎯 Local Lead Gen", "📩 Lead Response & Assets"])
@@ -370,7 +424,6 @@ with tab3:
     st.header("🎯 Automated Lead Discovery & Outreach for Your Businesses")
     subtab_discover, subtab_manual = st.tabs(["🔍 Auto-Discover Prospects", "✏️ Manual Entry"])
     
-    # === AUTO-DISCOVER PROSPECTS ===
     with subtab_discover:
         st.info("💡 A.R.I.A. will automatically find prospects and generate personalized outreach!")
         
@@ -503,7 +556,6 @@ with tab3:
                         st.error(f"Error in discovery: {e}")
                         logger.error(f"Discovery error: {e}")
     
-    # === MANUAL ENTRY ===
     with subtab_manual:
         st.header("Generate hyper-personalized outreach for specific prospects.")
         
@@ -611,17 +663,30 @@ with tab4:
                         "raw_business_details": raw_business_details
                     })
                     
-                    # The raw output will contain both the profile and the email. 
-                    # We can split them or just display the whole beautifully formatted output.
                     st.success("✅ Response Generated Successfully!")
                     
-                    st.subheader("📧 Drafted Email Reply")
-                    # Simple heuristic to split email and profile if the AI formats it well, 
-                    # otherwise just show the whole thing which is usually well-structured.
-                    st.markdown(result.raw)
+                    # Smart splitting: Look for common email indicators to separate the profile from the email
+                    raw_text = result.raw
+                    email_start_indices = [raw_text.find("Subject:"), raw_text.find("Dear "), raw_text.find("Hi ")]
+                    valid_indices = [i for i in email_start_indices if i != -1]
                     
-                    st.info("💡 **Pro Tip:** Copy the formatted profile above and paste it directly into Notion, or save it as a PDF to attach to your email!")
+                    if valid_indices:
+                        split_point = min(valid_indices)
+                        profile_section = raw_text[:split_point].strip()
+                        email_section = raw_text[split_point:].strip()
+                    else:
+                        profile_section = raw_text
+                        email_section = raw_text
+                    
+                    st.subheader("📋 Formatted Property Profile")
+                    st.markdown(profile_section)
+                    st.info("💡 **Pro Tip:** Copy this profile and paste it directly into Notion, or save it as a PDF to attach to your email!")
+                    
+                    st.divider()
+                    
+                    st.subheader("📧 Drafted Email Reply")
+                    st.markdown(email_section)
                     
                 except Exception as e:
                     st.error(f"Error generating response: {e}")
-                    logger.error(f"Response crew error: {e}")                       
+                    logger.error(f"Response crew error: {e}")
