@@ -245,6 +245,37 @@ def create_local_lead_crew():
                 ], process=Process.sequential, verbose=False)
 
 # ==========================================
+# 6.5. CREW 5: LEAD RESPONSE & ASSET COMPILER
+# ==========================================
+@st.cache_resource
+def create_response_crew():
+    llm = LLM(model="gpt-4o")
+    
+    formatter = Agent(
+        role="Professional Profile Formatter",
+        goal="Transform raw business details into a clean, structured, and highly professional property profile document.",
+        backstory="You are an expert hospitality consultant. You take messy, raw notes about a property and format them into a pristine, easy-to-read document that answers specific client requests (like tariffs, amenities, photos links, etc.).",
+        llm=llm,
+        verbose=False
+    )
+    
+    drafter = Agent(
+        role="Senior Partnership Manager",
+        goal="Draft a warm, professional, and concise email reply that acknowledges the lead's specific requests and introduces the attached profile.",
+        backstory="You are a master of B2B hospitality partnerships. You write emails that are polite, enthusiastic, and drive the conversation forward to a signed contract.",
+        llm=llm,
+        verbose=False
+    )
+
+    return Crew(agents=[formatter, drafter],
+                tasks=[
+                    Task(description="Review the incoming request: {incoming_request}. Format the following raw business details: {raw_business_details} into a clean, structured document addressing: 1. Property Profile, 2. Room Categories/Inventory, 3. Photo Links, 4. Tariffs (FIT/Group), 5. Meal Plans, 6. Amenities, 7. Location/Attractions, 8. Special Offers. Output as clean Markdown.", expected_output="Formatted Property Profile in Markdown", agent=formatter),
+                    Task(description="Draft a reply email to the lead. Acknowledge their specific request. Mention that the detailed Property Profile is provided below (or attached). Keep it under 150 words, warm, and professional. Sign off as: Sujesh T S, MYBAE Group, sts261261@gmail.com, 9048081475.", expected_output="Email Reply Draft", agent=drafter)
+                ], 
+                process=Process.sequential, 
+                verbose=False)
+
+# ==========================================
 # 7. STREAMLIT UI
 # ==========================================
 st.title("🤖 A.R.I.A. Command Center")
@@ -261,7 +292,7 @@ with st.sidebar:
     st.markdown("- Agents: 11 Ready")
     st.markdown("- Status:  Online")
 
-tab1, tab2, tab3 = st.tabs(["🤝 Vendor Negotiation", "🔄 Content Repurposing", "🎯 Local Lead Gen"])
+tab1, tab2, tab3, tab4 = st.tabs(["🤝 Vendor Negotiation", "🔄 Content Repurposing", "🎯 Local Lead Gen"])
 
 # --- TAB 1: VENDOR NEGOTIATION ---
 with tab1:
@@ -545,3 +576,52 @@ with tab3:
                             st.success(f"📱 {status_msg}")
                     except Exception as e:
                         st.error(f"Error: {e}")
+
+# --- TAB 4: LEAD RESPONSE & ASSET COMPILER ---
+with tab4:
+    st.header("📩 Turn Lead Requests into Closed Deals")
+    st.markdown("Paste the lead's email and your raw business details. A.R.I.A. will format a professional profile and draft the perfect reply.")
+    
+    with st.form("response_form"):
+        incoming_request = st.text_area("📥 Paste Incoming Lead Request *", height=150, placeholder="e.g., Dear Mr. Rahul, Thank you for reaching out... Could you please share property profile, tariffs, photos...")
+        
+        st.markdown("---")
+        st.markdown("#### 🏢 Your Raw Business Details")
+        st.caption("Don't worry about formatting. Just paste your messy notes, links, or bullet points below. A.R.I.A. will clean it up.")
+        raw_business_details = st.text_area("Raw Details *", height=200, placeholder="""e.g., 
+- Name: MYBAE Stay Inn, Alappuzha (near Kreupasanam Marine Shrine)
+- Rooms: 2 Family (3 pax), 6 Deluxe (2 pax)
+- Tariffs: Deluxe ₹3500, Family ₹5000. Group discount 15% for 5+ rooms.
+- Meals: Breakfast included. Lunch/Dinner available at ₹400/plate.
+- Amenities: Free WiFi, Parking, 24/7 Hot Water, Travel Desk.
+- Photos: [Insert Google Drive Link Here]
+- Special Offer: Free boat ride voucher for bookings over 3 nights.""")
+        
+        submit_response = st.form_submit_button("✨ Generate Profile & Reply", type="primary", use_container_width=True)
+    
+    if submit_response:
+        if not incoming_request or not raw_business_details:
+            st.error("Please fill in both the incoming request and your business details.")
+        else:
+            with st.spinner("🤖 A.R.I.A. is formatting your assets and drafting the reply..."):
+                try:
+                    crew = create_response_crew()
+                    result = crew.kickoff(inputs={
+                        "incoming_request": incoming_request,
+                        "raw_business_details": raw_business_details
+                    })
+                    
+                    # The raw output will contain both the profile and the email. 
+                    # We can split them or just display the whole beautifully formatted output.
+                    st.success("✅ Response Generated Successfully!")
+                    
+                    st.subheader("📧 Drafted Email Reply")
+                    # Simple heuristic to split email and profile if the AI formats it well, 
+                    # otherwise just show the whole thing which is usually well-structured.
+                    st.markdown(result.raw)
+                    
+                    st.info("💡 **Pro Tip:** Copy the formatted profile above and paste it directly into Notion, or save it as a PDF to attach to your email!")
+                    
+                except Exception as e:
+                    st.error(f"Error generating response: {e}")
+                    logger.error(f"Response crew error: {e}")                       
