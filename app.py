@@ -18,7 +18,7 @@ from crewai_tools import TavilySearchTool, ScrapeWebsiteTool
 # ==========================================
 load_dotenv()
 
-st.set_page_config(page_title="A.R.I.A. Command Center", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="A.R.I.A. Command Center", page_icon="", layout="wide")
 
 os.makedirs('logs', exist_ok=True)
 logging.basicConfig(
@@ -74,7 +74,7 @@ def check_password():
             on_change=password_entered,
             key="password"
         )
-        st.error("😕 Password incorrect")
+        st.error(" Password incorrect")
         return False
     else:
         return True
@@ -231,7 +231,7 @@ def create_local_lead_crew():
     qa = Agent(
         role="QA Director",
         goal="Validate tone, length, and output strict JSON.",
-        backstory="Ensuring emails sound like a genuine local business owner.",
+        backstory="Ensures emails sound like a genuine local business owner.",
         llm=llm, verbose=False
     )
 
@@ -252,15 +252,15 @@ def create_response_crew():
     formatter = Agent(
         role="Hospitality Documentation Expert",
         goal="Create a professional property profile document from raw notes",
-        backstory="Expert at creating hotel property profiles",
+        backstory="Expert at creating hotel property profiles for B2B partnerships",
         llm=llm,
         verbose=False
     )
     
     drafter = Agent(
         role="B2B Partnership Email Specialist",
-        goal="Write personalized partnership emails",
-        backstory="Expert at writing warm, personalized B2B emails",
+        goal="Write short, personalized partnership emails",
+        backstory="Expert at writing warm, concise B2B emails that drive action",
         llm=llm,
         verbose=False
     )
@@ -268,60 +268,76 @@ def create_response_crew():
     return Crew(agents=[formatter, drafter],
                 tasks=[
                     Task(description="""
-                    Create a professional property profile from these details: {raw_business_details}
+                    Create a SEPARATE, professional Property Profile document from: {raw_business_details}
                     
-                    Format it EXACTLY like this:
+                    Format it EXACTLY like this (use markdown):
                     
-                    # PROPERTY PROFILE: MYBAE Stay Inn
+                    # 🏨 PROPERTY PROFILE
                     
-                    ## 📍 Location
-                    [Extract location info]
+                    ## MYBAE Stay Inn
+                    *Boutique Hospitality in Alappuzha*
                     
-                    ## 🛏️ Rooms
-                    [List room types and capacity]
+                    ---
                     
-                    ## 💰 Rates
-                    [List all pricing]
+                    ###  Location
+                    [Extract location]
                     
-                    ## 🍽️ Food
-                    [Meal options]
+                    ### 🛏️ Room Inventory
+                    - **Family Rooms:** 2 rooms (3 persons each)
+                    - **Deluxe Rooms:** 6 rooms (2 persons each)
+                    - **Total Capacity:** 18 guests
                     
-                    ## ✨ Amenities
-                    [List amenities]
+                    ### 💰 Tariff Structure
+                    **Standard Rates:**
+                    - Deluxe Room: ₹[price]/night
+                    - Family Room: ₹[price]/night
                     
-                    ## 📸 Photos
+                    **Group Discounts:**
+                    [Mention any discounts]
+                    
+                    ### 🍽️ Dining Options
+                    [Meal availability]
+                    
+                    ###  Amenities
+                    [List all amenities with checkmarks]
+                    
+                    ### 📸 Photo Gallery
                     [Photo links]
                     
-                    ##  Offers
-                    [Special offers]
+                    ### 🌟 Special Offers
+                    [Any special offers]
                     
-                    ## 🗺️ Nearby
-                    [Nearby attractions]
+                    ### 🗺️ Nearby Attractions
+                    [Nearby places]
+                    
+                    ---
+                    *For inquiries: sts261261@gmail.com | +91 9048081475*
                     """, 
-                    expected_output="Property profile in markdown format with all 8 sections", 
+                    expected_output="Complete Property Profile document in markdown with all sections, emojis, and professional formatting", 
                     agent=formatter),
                     
                     Task(description="""
-                    Write a reply email to this inquiry: {incoming_request}
+                    Write a SHORT, warm email reply to: {incoming_request}
                     
-                    CRITICAL RULES:
-                    1. Find the sender's NAME from the signature (look for names like "Rajalaxmi", "Regards,", "Best," etc.)
-                    2. Find their COMPANY name
-                    3. Start with: "Dear [Actual Name],"
-                    4. Mention their company by name
-                    5. Reference something specific from their email
-                    6. Keep it under 150 words
-                    7. End with:
+                    RULES:
+                    1. Address them by name (extract from signature - look for names before the title)
+                    2. Thank them for their interest in MYBAE Stay Inn
+                    3. Say: "Please find our detailed Property Profile below with all the information you requested."
+                    4. Express enthusiasm for partnership with GT Holidays (or their company name)
+                    5. Keep it under 100 words
+                    6. End with:
                     Warm regards,
                     Sujesh T S
                     MYBAE Group
                     sts261261@gmail.com | 9048081475
+                    
+                    The email should be BRIEF - the details are in the Property Profile, not in the email itself.
                     """, 
-                    expected_output="Personalized email with actual name and company", 
+                    expected_output="Brief, personalized email (under 100 words) that references the Property Profile", 
                     agent=drafter)
                 ], 
                 process=Process.sequential, 
-                verbose=True)
+                verbose=False)
 
 # ==========================================
 # 7. STREAMLIT UI
@@ -339,7 +355,7 @@ with st.sidebar:
     st.markdown("- Agents: 13 Ready")
     st.markdown("- Status:  Online")
 
-tab1, tab2, tab3, tab4 = st.tabs([" Vendor Negotiation", "🔄 Content Repurposing", "🎯 Local Lead Gen", " Lead Response & Assets"])
+tab1, tab2, tab3, tab4 = st.tabs(["🤝 Vendor Negotiation", "🔄 Content Repurposing", "🎯 Local Lead Gen", "📩 Lead Response & Assets"])
 
 # --- TAB 1: VENDOR NEGOTIATION ---
 with tab1:
@@ -354,7 +370,7 @@ with tab1:
             v_date = st.text_input("Contract End Date", placeholder="2026-12-31")
             u_email = st.text_input("Your Email (to receive draft) *", value=os.getenv("GMAIL_ADDRESS", ""))
         
-        if st.form_submit_button(" Generate Negotiation Draft", type="primary", use_container_width=True):
+        if st.form_submit_button("🚀 Generate Negotiation Draft", type="primary", use_container_width=True):
             if not all([v_name, v_service, v_cost, u_email]):
                 st.error("Please fill in all required fields.")
             else:
@@ -368,7 +384,7 @@ with tab1:
                         st.code(parsed.get('body', 'N/A'), language="text")
                         if auto_email_global:
                             status = save_and_notify_telegram(u_email, parsed.get('subject', ''), parsed.get('body', ''), "Vendor Negotiation")
-                            st.success(f" {status}!")
+                            st.success(f"📱 {status}!")
                     except Exception as e:
                         st.error(f"Error: {e}")
 
@@ -456,7 +472,7 @@ with tab3:
             with col2:
                 search_location = st.text_input("Target Location to Search *", value=default_loc, placeholder="e.g., Kochi, Alappuzha, Cherthala")
             
-            submit_discovery = st.form_submit_button(" Discover & Generate Outreach", type="primary", use_container_width=True)
+            submit_discovery = st.form_submit_button("🔍 Discover & Generate Outreach", type="primary", use_container_width=True)
         
         if submit_discovery:
             is_valid = True
@@ -543,7 +559,7 @@ with tab3:
                                     st.error(f"Error generating for {lead.get('company')}: {e}")
                                     logger.error(f"Outreach error: {e}")
                             
-                            st.success(" Outreach generation complete!")
+                            st.success("✅ Outreach generation complete!")
                             
                     except Exception as e:
                         st.error(f"Error in discovery: {e}")
@@ -586,7 +602,7 @@ with tab3:
                 l_title = st.text_input("Contact Title *", placeholder="e.g., Operations Manager")
                 l_email = st.text_input("Prospect Email *", placeholder="e.g., rahul@keralatravel.com")
             
-            submit_manual = st.form_submit_button(" Generate Lead Outreach", type="primary", use_container_width=True)
+            submit_manual = st.form_submit_button("🎯 Generate Lead Outreach", type="primary", use_container_width=True)
         
         if submit_manual:
             is_valid_manual = True
@@ -598,7 +614,7 @@ with tab3:
                 is_valid_manual = False
             
             if is_valid_manual:
-                with st.spinner("🔍 Researching local triggers and drafting outreach..."):
+                with st.spinner(" Researching local triggers and drafting outreach..."):
                     try:
                         crew = create_local_lead_crew()
                         inputs = {
@@ -624,14 +640,14 @@ with tab3:
 
 # --- TAB 4: LEAD RESPONSE & ASSET COMPILER ---
 with tab4:
-    st.header("📩 Turn Lead Requests into Closed Deals")
+    st.header(" Turn Lead Requests into Closed Deals")
     st.markdown("Paste the lead's email and your raw business details. A.R.I.A. will format a professional profile and draft the perfect reply.")
     
     with st.form("response_form"):
-        incoming_request = st.text_area(" Paste Incoming Lead Request *", height=150, placeholder="e.g., Dear Mr. Rahul, Thank you for reaching out... Could you please share property profile, tariffs, photos...")
+        incoming_request = st.text_area("📥 Paste Incoming Lead Request *", height=150, placeholder="e.g., Dear Mr. Rahul, Thank you for reaching out... Could you please share property profile, tariffs, photos...")
         
         st.markdown("---")
-        st.markdown("####  Your Raw Business Details")
+        st.markdown("#### 🏢 Your Raw Business Details")
         st.caption("Don't worry about formatting. Just paste your messy notes, links, or bullet points below. A.R.I.A. will clean it up.")
         raw_business_details = st.text_area("Raw Details *", height=200, placeholder="""e.g., 
 - Name: MYBAE Stay Inn, Alappuzha (near Kreupasanam Marine Shrine)
@@ -648,7 +664,7 @@ with tab4:
         if not incoming_request or not raw_business_details:
             st.error("Please fill in both fields.")
         else:
-            with st.spinner("🤖 A.R.I.A. is working..."):
+            with st.spinner(" A.R.I.A. is crafting your response..."):
                 try:
                     crew = create_response_crew()
                     result = crew.kickoff(inputs={
@@ -656,10 +672,40 @@ with tab4:
                         "raw_business_details": raw_business_details
                     })
                     
-                    st.success("✅ Generated!")
+                    st.success("✅ Response Generated Successfully!")
                     
-                    # Show full raw output for debugging
-                    st.markdown(result.raw)
+                    # Split by looking for the email signature
+                    raw_text = result.raw
+                    
+                    # Find where the email starts (look for "Warm regards" or "Dear")
+                    email_markers = ["Warm regards,", "Dear ", "Hi "]
+                    email_start = -1
+                    
+                    for marker in email_markers:
+                        pos = raw_text.find(marker)
+                        if pos != -1 and pos < 500:  # Email should be near the end
+                            email_start = pos
+                            break
+                    
+                    if email_start != -1:
+                        profile_section = raw_text[:email_start].strip()
+                        email_section = raw_text[email_start:].strip()
+                    else:
+                        # Fallback: show everything
+                        profile_section = raw_text
+                        email_section = raw_text
+                    
+                    # Show Property Profile first
+                    st.subheader("📋 Professional Property Profile")
+                    st.markdown(profile_section)
+                    st.info("💡 **Copy this profile** → Paste into Notion or save as PDF to attach!")
+                    
+                    st.divider()
+                    
+                    # Show Email second
+                    st.subheader("📧 Email Reply")
+                    st.markdown(email_section)
+                    st.success("✅ Ready to send!")
                     
                 except Exception as e:
                     st.error(f"Error: {e}")
