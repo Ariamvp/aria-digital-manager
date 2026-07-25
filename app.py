@@ -75,12 +75,18 @@ def login_page():
                 except Exception as e:
                     st.error(f"Signup failed: {str(e)}")
 
+from datetime import datetime
+
 def check_trial(user):
     """Checks if the user is still in their 14-day free trial."""
+    from db import supabase_admin
     res = supabase_admin.table("profiles").select("trial_ends_at").eq("id", user.id).execute()
-    if res.data:
-        # In a real app, parse the date and compare. For now, we just check if the row exists.
-        return True 
+    
+    if res.data and res.data[0].get('trial_ends_at'):
+        trial_end = datetime.fromisoformat(res.data[0]['trial_ends_at'].replace('Z', '+00:00'))
+        now = datetime.now(trial_end.tzinfo)
+        if now < trial_end:
+            return True
     return False
 
 # ==========================================
