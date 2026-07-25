@@ -75,19 +75,35 @@ def login_page():
                 except Exception as e:
                     st.error(f"Signup failed: {str(e)}")
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 def check_trial(user):
     """Checks if the user is still in their 14-day free trial."""
     from db import supabase_admin
     res = supabase_admin.table("profiles").select("trial_ends_at").eq("id", user.id).execute()
     
-    if res.data and res.data[0].get('trial_ends_at'):
-        trial_end = datetime.fromisoformat(res.data[0]['trial_ends_at'].replace('Z', '+00:00'))
+    if not res.data or not res.data[0].get('trial_ends_at'):
+        return True  # Grant access if no date (safety fallback)
+    
+    try:
+        # Parse the Supabase timestamp
+        trial_end_str = res.data[0]['trial_ends_at']
+        # Handle different timestamp formats
+        if trial_end_str.endswith('Z'):
+            trial_end_str = trial_end_str.replace('Z', '+00:00')
+        
+        trial_end = datetime.fromisoformat(trial_end_str)
         now = datetime.now(trial_end.tzinfo)
-        if now < trial_end:
-            return True
-    return False
+        
+        # Debug: print dates
+        print(f"Trial ends: {trial_end}")
+        print(f"Current time: {now}")
+        print(f"Is valid: {now < trial_end}")
+        
+        return now < trial_end
+    except Exception as e:
+        print(f"Trial check error: {e}")
+        return True  # Grant access on error
 
 # ==========================================
 # 3. CREW DEFINITIONS (Dynamic)
