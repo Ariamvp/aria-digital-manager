@@ -28,7 +28,39 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ARIA_Dashboard")
 
-# Business Pitches Dictionary
+# ==========================================
+# HELPER: QUICK COPY BUTTON
+# ==========================================
+def add_quick_copy(text):
+    """Adds a quick copy button above the content using safe HTML/JS."""
+    # Escape characters to prevent JS breaking
+    safe_text = text.replace("\\", "\\\\").replace("'", "\\'").replace("`", "\\`").replace("\n", "\\n").replace("\r", "")
+    
+    btn_id = f"btn_{uuid.uuid4().hex[:8]}"
+    
+    st.markdown(
+        f"""
+        <button id="{btn_id}" style="background-color: #f0f2f6; border: 1px solid #ccc; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 13px; margin-bottom: 10px; display: flex; align-items: center; gap: 5px;">
+            📋 Copy to Clipboard
+        </button>
+        <script>
+            document.getElementById("{btn_id}").onclick = function() {{
+                navigator.clipboard.writeText('{safe_text}');
+                this.innerHTML = "✅ Copied!";
+                this.style.backgroundColor = "#d4edda";
+                this.style.borderColor = "#c3e6cb";
+                setTimeout(() => {{ 
+                    this.innerHTML = "📋 Copy to Clipboard"; 
+                    this.style.backgroundColor = "#f0f2f6";
+                    this.style.borderColor = "#ccc";
+                }}, 2000);
+            }};
+        </script>
+        """,
+        unsafe_allow_html=True
+    )
+
+# Business Pitches Dictionary (Placeholder for future multi-tenant)
 BUSINESS_PITCHES = {
     "MYBAE Stay Inn": {
         "name": "MYBAE Stay Inn",
@@ -78,7 +110,7 @@ def check_password():
             on_change=password_entered,
             key="password"
         )
-        st.error("😕 Password incorrect")
+        st.error(" Password incorrect")
         return False
     else:
         return True
@@ -275,7 +307,7 @@ def create_response_crew():
                     ===================================
                     Create a professional, formatted property profile with these sections:
                     
-                    # 🏨 PROPERTY PROFILE: MYBAE Stay Inn
+                    #  PROPERTY PROFILE: MYBAE Stay Inn
                     
                     ## 📍 Location
                     [Extract from raw details]
@@ -421,7 +453,7 @@ st.title("🤖 A.R.I.A. Command Center")
 st.markdown("Your Autonomous Revenue & Intelligence Agent. Choose your module below.")
 
 with st.sidebar:
-    st.header("⚙️ Global Settings")
+    st.header("️ Global Settings")
     st.info("Settings apply to all modules")
     auto_email_global = st.checkbox("Send drafts to Telegram for approval", value=True, help="Sends drafts to your Telegram bot. You must reply 'send [ID]' to actually send the email.")
     st.divider()
@@ -431,7 +463,7 @@ with st.sidebar:
     st.markdown("- Status: 🟢 Online")
 
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "🤝 Vendor Negotiation", 
+    " Vendor Negotiation", 
     "🔄 Content Repurposing", 
     "🎯 Local Lead Gen", 
     "📩 Lead Response & Assets", 
@@ -456,13 +488,14 @@ with tab1:
             if not all([v_name, v_service, v_cost, u_email]):
                 st.error("Please fill in all required fields.")
             else:
-                with st.spinner("🔍 Researching competitors and drafting..."):
+                with st.spinner(" Researching competitors and drafting..."):
                     try:
                         crew = create_negotiation_crew()
                         result = crew.kickoff(inputs={"vendor_name": v_name, "current_service": v_service, "monthly_cost": v_cost, "contract_end_date": v_date})
                         parsed = parse_json_output(result.raw)
                         st.success("✅ Draft Generated!")
                         st.markdown(f"**Subject:** {parsed.get('subject', 'N/A')}")
+                        # st.code natively has a copy button!
                         st.code(parsed.get('body', 'N/A'), language="text")
                         if auto_email_global:
                             status = save_and_notify_telegram(u_email, parsed.get('subject', ''), parsed.get('body', ''), "Vendor Negotiation")
@@ -494,18 +527,27 @@ with tab2:
                             st.error("Failed to parse output.")
                         else:
                             st.success("✅ Content Repurposed Successfully!")
+                            
                             st.subheader("📝 SEO Blog Post")
+                            add_quick_copy(parsed.get('blog', 'N/A'))
                             st.markdown(parsed.get('blog', 'N/A'))
+                            
                             col_a, col_b = st.columns(2)
                             with col_a:
                                 st.subheader("💼 LinkedIn Post")
+                                add_quick_copy(parsed.get('linkedin', 'N/A'))
                                 st.markdown(parsed.get('linkedin', 'N/A'))
+                                
                                 st.subheader("📧 Newsletter Email")
+                                add_quick_copy(parsed.get('newsletter', 'N/A'))
                                 st.markdown(parsed.get('newsletter', 'N/A'))
                             with col_b:
-                                st.subheader("🐦 Twitter/X Thread")
+                                st.subheader(" Twitter/X Thread")
+                                add_quick_copy(parsed.get('twitter', 'N/A'))
                                 st.markdown(parsed.get('twitter', 'N/A'))
+                                
                                 st.subheader("📸 Instagram Caption")
+                                add_quick_copy(parsed.get('instagram', 'N/A'))
                                 st.markdown(parsed.get('instagram', 'N/A'))
                     except Exception as e:
                         st.error(f"Error: {e}")
@@ -626,6 +668,9 @@ with tab3:
                                     
                                     st.markdown(f"**{idx}. {lead.get('company') or 'Unknown Company'}**")
                                     st.markdown(f"*Subject:* {parsed.get('subject', 'N/A')}")
+                                    
+                                    # Add copy button for the email body
+                                    add_quick_copy(parsed.get('body', 'N/A'))
                                     st.code(parsed.get('body', 'N/A'), language="text")
                                     
                                     lead_email = lead.get('email')
@@ -633,7 +678,7 @@ with tab3:
                                         status_msg = save_and_notify_telegram(lead_email, parsed.get('subject', ''), parsed.get('body', ''), "Local Lead Outreach")
                                         st.caption(f"📱 {status_msg}")
                                     else:
-                                        st.caption("⚠️ Skipped Telegram notification: No valid prospect email found. Draft is shown above.")
+                                        st.caption("️ Skipped Telegram notification: No valid prospect email found. Draft is shown above.")
                                     
                                     progress_bar.progress((idx + 1) / len(discovered_leads))
                                     
@@ -696,7 +741,7 @@ with tab3:
                 is_valid_manual = False
             
             if is_valid_manual:
-                with st.spinner("🔍 Researching local triggers and drafting outreach..."):
+                with st.spinner(" Researching local triggers and drafting outreach..."):
                     try:
                         crew = create_local_lead_crew()
                         inputs = {
@@ -712,11 +757,13 @@ with tab3:
                         
                         st.success("✅ Lead Outreach Generated!")
                         st.markdown(f"**Subject:** {parsed.get('subject', 'N/A')}")
+                        
+                        add_quick_copy(parsed.get('body', 'N/A'))
                         st.code(parsed.get('body', 'N/A'), language="text")
                         
                         if auto_email_global:
                             status_msg = save_and_notify_telegram(l_email, parsed.get('subject', ''), parsed.get('body', ''), "Manual Lead Outreach")
-                            st.success(f"📱 {status_msg}")
+                            st.success(f" {status_msg}")
                     except Exception as e:
                         st.error(f"Error: {e}")
 
@@ -767,12 +814,14 @@ with tab4:
                         email_section = ""
                     
                     st.subheader("📋 Professional Property Profile")
+                    add_quick_copy(profile_section)
                     st.markdown(profile_section)
                     st.info("💡 **Copy this profile** → Paste into Notion or save as PDF!")
                     
                     if email_section:
                         st.divider()
                         st.subheader("📧 Email Reply")
+                        add_quick_copy(email_section)
                         st.markdown(email_section)
                         st.success("✅ Ready to send!")
                     
@@ -807,8 +856,11 @@ with tab5:
                     
                     st.success("✅ Response Generated!")
                     st.subheader("📝 Your Response")
+                    
+                    # Add copy button for the review response
+                    add_quick_copy(result.raw)
                     st.markdown(result.raw)
-                    st.info("💡 **Copy and paste** this directly into Google/TripAdvisor!")
+                    st.info(" **Copy and paste** this directly into Google/TripAdvisor!")
                     
                 except Exception as e:
                     st.error(f"Error: {e}")
@@ -816,7 +868,7 @@ with tab5:
 
 # --- TAB 6: WHATSAPP BROADCAST GENERATOR ---
 with tab6:
-    st.header("📱 WhatsApp Broadcast Generator")
+    st.header(" WhatsApp Broadcast Generator")
     st.markdown("Create high-converting, perfectly formatted WhatsApp messages for your customers. Ready to copy-paste!")
     
     with st.form("whatsapp_form"):
@@ -838,10 +890,10 @@ with tab6:
             broadcast_type = st.selectbox("Broadcast Type", [
                 "🎉 Festival Greeting (Onam, Vishu, Christmas, etc.)",
                 "💰 Special Discount / Offer",
-                "⏰ Last-Minute Availability / Urgent",
+                " Last-Minute Availability / Urgent",
                 "🔄 Welcome Back / Re-engagement (Haven't visited in a while)",
-                "🎂 Birthday / Anniversary Wish",
-                "📢 New Product / Service Launch"
+                " Birthday / Anniversary Wish",
+                " New Product / Service Launch"
             ])
             
             specific_details = st.text_area("Specific Details / Offer *", height=100, placeholder="e.g., 15% off for 3+ nights, valid till Aug 30. Free breakfast included.")
@@ -866,7 +918,7 @@ with tab6:
                     st.success("✅ WhatsApp Message Generated!")
                     st.subheader("📱 Ready to Copy-Paste")
                     
-                    # Display in a code block so formatting (asterisks) is preserved exactly for WhatsApp
+                    # st.code natively has a copy button in the top right!
                     st.code(result.raw, language="text")
                     
                     st.info("💡 **Pro Tip:** Click the 'Copy' button in the top right of the black box above, then paste directly into WhatsApp Web or your phone!")
