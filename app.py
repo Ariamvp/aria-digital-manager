@@ -31,13 +31,17 @@ logger = logging.getLogger("ARIA_Dashboard")
 # Business Pitches Dictionary
 BUSINESS_PITCHES = {
     "MYBAE Stay Inn": {
-        "pitch": "MYBAE Stay Inn: 8-room boutique stay in Alappuzha (Kalavoor) near Kreupasanam Marine Shrine. 2 family rooms (3 pax) and 6 deluxe rooms (2 pax). Ideal for small corporate offsites or family retreats.",
+        "name": "MYBAE Stay Inn",
+        "pitch": "8-room boutique stay in Alappuzha (Kalavoor) near Kreupasanam Marine Shrine. 2 family rooms (3 pax) and 6 deluxe rooms (2 pax).",
+        "contact": "Sujesh T S | 9048081475 | sts261261@gmail.com",
         "target_categories": ["tour operators", "travel agencies", "corporate event planners", "wedding planners", "retreat organizers"],
         "locations": ["Kochi", "Alappuzha", "Kottayam", "Kerala"],
         "email": "mybaerooms@gmail.com"
     },
     "Homemade Kerala Pickles": {
-        "pitch": "Authentic Homemade Kerala Pickles (Prawn, Fish, Mango, Lemon, Ginger) in premium glass jars (150g to 1kg). Hygienic, traditional recipes, perfect for retail shelves or corporate gifting.",
+        "name": "Homemade Kerala Pickles",
+        "pitch": "Authentic Homemade Kerala Pickles (Prawn, Fish, Mango, Lemon, Ginger) in premium glass jars (150g to 1kg). Hygienic, traditional recipes.",
+        "contact": "Sujesh T S | 9048081475 | sts261261@gmail.com",
         "target_categories": ["supermarkets", "organic food stores", "gourmet shops", "corporate gifting companies", "specialty food distributors"],
         "locations": ["Alappuzha", "Kochi", "Cherthala", "Kerala"],
         "email": "mybaepickles@gmail.com"
@@ -111,7 +115,7 @@ def save_and_notify_telegram(to_address, subject, body, task_type="Draft"):
     
     body_preview = body[:250] + "..." if len(body) > 250 else body
     
-    message = f" *A.R.I.A. Approval Required*\n\n*Type:* {task_type}\n*To:* {to_address}\n*Subject:* {subject}\n\n*Preview:*\n_{body_preview}_\n\nReply with: `send {task_id}` to approve and send."
+    message = f"🤖 *A.R.I.A. Approval Required*\n\n*Type:* {task_type}\n*To:* {to_address}\n*Subject:* {subject}\n\n*Preview:*\n_{body_preview}_\n\nReply with: `send {task_id}` to approve and send."
     
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
@@ -271,7 +275,7 @@ def create_response_crew():
                     ===================================
                     Create a professional, formatted property profile with these sections:
                     
-                    #  PROPERTY PROFILE: MYBAE Stay Inn
+                    # 🏨 PROPERTY PROFILE: MYBAE Stay Inn
                     
                     ## 📍 Location
                     [Extract from raw details]
@@ -368,22 +372,72 @@ def create_review_crew():
                 verbose=False)
 
 # ==========================================
+# 6.7. CREW 7: WHATSAPP BROADCAST GENERATOR
+# ==========================================
+@st.cache_resource
+def create_whatsapp_crew():
+    llm = LLM(model="gpt-4o")
+    
+    whatsapp_expert = Agent(
+        role="WhatsApp Marketing Specialist",
+        goal="Create highly engaging, properly formatted WhatsApp broadcast messages that drive action without looking like spam",
+        backstory="You are a master of WhatsApp marketing in India. You know exactly how to use bolding, italics, emojis, and spacing to make messages readable, exciting, and highly convertible. You avoid generic AI fluff and write like a trusted local business owner.",
+        llm=llm,
+        verbose=False
+    )
+
+    return Crew(agents=[whatsapp_expert],
+                tasks=[
+                    Task(description="""
+                    Create a WhatsApp broadcast message for the following scenario:
+                    
+                    Business: {business_name}
+                    Context/Pitch: {business_pitch}
+                    Contact Info: {contact_info}
+                    Broadcast Type: {broadcast_type}
+                    Specific Details/Offer: {specific_details}
+                    
+                    STRICT WHATSAPP FORMATTING RULES:
+                    1. Use *asterisks* for bold text (e.g., *Special Offer*)
+                    2. Use _underscores_ for italics if needed
+                    3. Use relevant, eye-catching emojis (but don't overdo it, max 1-2 per line)
+                    4. Keep it concise (under 150 words total). WhatsApp users skim.
+                    5. Include a clear, low-friction Call to Action (CTA) with the phone number.
+                    6. Add a polite opt-out line at the very bottom (e.g., "Reply STOP to unsubscribe").
+                    7. DO NOT use generic AI phrases like "Unlock the power of" or "Elevate your experience". Sound natural, warm, and local.
+                    
+                    OUTPUT: Just the raw WhatsApp message text, ready to copy-paste. No introductory chatter.
+                    """, 
+                    expected_output="Perfectly formatted WhatsApp broadcast message", 
+                    agent=whatsapp_expert)
+                ], 
+                process=Process.sequential, 
+                verbose=False)
+
+# ==========================================
 # 7. STREAMLIT UI
 # ==========================================
 st.title("🤖 A.R.I.A. Command Center")
 st.markdown("Your Autonomous Revenue & Intelligence Agent. Choose your module below.")
 
 with st.sidebar:
-    st.header("️ Global Settings")
+    st.header("⚙️ Global Settings")
     st.info("Settings apply to all modules")
     auto_email_global = st.checkbox("Send drafts to Telegram for approval", value=True, help="Sends drafts to your Telegram bot. You must reply 'send [ID]' to actually send the email.")
     st.divider()
     st.markdown("### 📊 Quick Stats")
-    st.markdown("- Pipelines: 5 Active")
-    st.markdown("- Agents: 14 Ready")
-    st.markdown("- Status:  Online")
+    st.markdown("- Pipelines: 6 Active")
+    st.markdown("- Agents: 15 Ready")
+    st.markdown("- Status: 🟢 Online")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🤝 Vendor Negotiation", "🔄 Content Repurposing", "🎯 Local Lead Gen", "📩 Lead Response & Assets", "⭐ Review Responses"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "🤝 Vendor Negotiation", 
+    "🔄 Content Repurposing", 
+    "🎯 Local Lead Gen", 
+    "📩 Lead Response & Assets", 
+    "⭐ Review Responses",
+    "📱 WhatsApp Broadcasts"
+])
 
 # --- TAB 1: VENDOR NEGOTIATION ---
 with tab1:
@@ -500,7 +554,7 @@ with tab3:
             with col2:
                 search_location = st.text_input("Target Location to Search *", value=default_loc, placeholder="e.g., Kochi, Alappuzha, Cherthala")
             
-            submit_discovery = st.form_submit_button(" Discover & Generate Outreach", type="primary", use_container_width=True)
+            submit_discovery = st.form_submit_button("🔍 Discover & Generate Outreach", type="primary", use_container_width=True)
         
         if submit_discovery:
             is_valid = True
@@ -512,7 +566,7 @@ with tab3:
                 is_valid = False
             
             if is_valid:
-                with st.spinner(" A.R.I.A. is discovering prospects and generating personalized outreach... (This may take 2-3 minutes)"):
+                with st.spinner("🤖 A.R.I.A. is discovering prospects and generating personalized outreach... (This may take 2-3 minutes)"):
                     try:
                         st.markdown(f"**Searching for {search_category} in {search_location}...**")
                         discovery_crew = create_prospect_finder_crew()
@@ -630,7 +684,7 @@ with tab3:
                 l_title = st.text_input("Contact Title *", placeholder="e.g., Operations Manager")
                 l_email = st.text_input("Prospect Email *", placeholder="e.g., rahul@keralatravel.com")
             
-            submit_manual = st.form_submit_button(" Generate Lead Outreach", type="primary", use_container_width=True)
+            submit_manual = st.form_submit_button("🎯 Generate Lead Outreach", type="primary", use_container_width=True)
         
         if submit_manual:
             is_valid_manual = True
@@ -712,7 +766,7 @@ with tab4:
                         profile_section = raw_text
                         email_section = ""
                     
-                    st.subheader(" Professional Property Profile")
+                    st.subheader("📋 Professional Property Profile")
                     st.markdown(profile_section)
                     st.info("💡 **Copy this profile** → Paste into Notion or save as PDF!")
                     
@@ -759,3 +813,64 @@ with tab5:
                 except Exception as e:
                     st.error(f"Error: {e}")
                     logger.error(f"Review crew error: {e}")
+
+# --- TAB 6: WHATSAPP BROADCAST GENERATOR ---
+with tab6:
+    st.header("📱 WhatsApp Broadcast Generator")
+    st.markdown("Create high-converting, perfectly formatted WhatsApp messages for your customers. Ready to copy-paste!")
+    
+    with st.form("whatsapp_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            business_select = st.selectbox("Select Business", list(BUSINESS_PITCHES.keys()) + ["Custom Business"])
+            
+            if business_select == "Custom Business":
+                biz_name = st.text_input("Business Name *", placeholder="e.g., My Cafe")
+                biz_pitch = st.text_area("What do you do? *", height=80, placeholder="e.g., Premium coffee and snacks in Alappuzha")
+                contact_info = st.text_input("Contact Info *", placeholder="e.g., Sujesh | 9048081475")
+            else:
+                biz_name = BUSINESS_PITCHES[business_select]["name"]
+                biz_pitch = BUSINESS_PITCHES[business_select]["pitch"]
+                contact_info = BUSINESS_PITCHES[business_select]["contact"]
+                st.info(f"Using predefined details for *{biz_name}*")
+                
+        with col2:
+            broadcast_type = st.selectbox("Broadcast Type", [
+                "🎉 Festival Greeting (Onam, Vishu, Christmas, etc.)",
+                "💰 Special Discount / Offer",
+                "⏰ Last-Minute Availability / Urgent",
+                "🔄 Welcome Back / Re-engagement (Haven't visited in a while)",
+                "🎂 Birthday / Anniversary Wish",
+                "📢 New Product / Service Launch"
+            ])
+            
+            specific_details = st.text_area("Specific Details / Offer *", height=100, placeholder="e.g., 15% off for 3+ nights, valid till Aug 30. Free breakfast included.")
+        
+        submit_whatsapp = st.form_submit_button("✨ Generate WhatsApp Message", type="primary", use_container_width=True)
+    
+    if submit_whatsapp:
+        if not specific_details:
+            st.error("Please provide specific details or the offer.")
+        else:
+            with st.spinner("🤖 A.R.I.A. is crafting your WhatsApp broadcast..."):
+                try:
+                    crew = create_whatsapp_crew()
+                    result = crew.kickoff(inputs={
+                        "business_name": biz_name,
+                        "business_pitch": biz_pitch,
+                        "contact_info": contact_info,
+                        "broadcast_type": broadcast_type,
+                        "specific_details": specific_details
+                    })
+                    
+                    st.success("✅ WhatsApp Message Generated!")
+                    st.subheader("📱 Ready to Copy-Paste")
+                    
+                    # Display in a code block so formatting (asterisks) is preserved exactly for WhatsApp
+                    st.code(result.raw, language="text")
+                    
+                    st.info("💡 **Pro Tip:** Click the 'Copy' button in the top right of the black box above, then paste directly into WhatsApp Web or your phone!")
+                    
+                except Exception as e:
+                    st.error(f"Error: {e}")
+                    logger.error(f"WhatsApp crew error: {e}")
