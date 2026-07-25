@@ -111,7 +111,7 @@ def save_and_notify_telegram(to_address, subject, body, task_type="Draft"):
     
     body_preview = body[:250] + "..." if len(body) > 250 else body
     
-    message = f"🤖 *A.R.I.A. Approval Required*\n\n*Type:* {task_type}\n*To:* {to_address}\n*Subject:* {subject}\n\n*Preview:*\n_{body_preview}_\n\nReply with: `send {task_id}` to approve and send."
+    message = f" *A.R.I.A. Approval Required*\n\n*Type:* {task_type}\n*To:* {to_address}\n*Subject:* {subject}\n\n*Preview:*\n_{body_preview}_\n\nReply with: `send {task_id}` to approve and send."
     
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
@@ -271,12 +271,12 @@ def create_response_crew():
                     ===================================
                     Create a professional, formatted property profile with these sections:
                     
-                    # 🏨 PROPERTY PROFILE: MYBAE Stay Inn
+                    #  PROPERTY PROFILE: MYBAE Stay Inn
                     
                     ## 📍 Location
                     [Extract from raw details]
                     
-                    ## ️ Rooms
+                    ## 🛏️ Rooms
                     - Family Rooms: [number] ([capacity] persons)
                     - Deluxe Rooms: [number] ([capacity] persons)
                     
@@ -286,7 +286,7 @@ def create_response_crew():
                     ## 🍽️ Meals
                     [What's available]
                     
-                    ##  Amenities
+                    ## ✨ Amenities
                     [List all amenities]
                     
                     ## 📸 Photos
@@ -327,22 +327,63 @@ def create_response_crew():
                 verbose=False)
 
 # ==========================================
+# 6.6. CREW 6: REVIEW RESPONSE GENERATOR
+# ==========================================
+@st.cache_resource
+def create_review_crew():
+    llm = LLM(model="gpt-4o")
+    
+    responder = Agent(
+        role="Hospitality Reputation Manager",
+        goal="Write perfect, empathetic, and brand-aligned responses to guest reviews",
+        backstory="You are an expert in guest relations and online reputation management for boutique hotels. You know how to turn negative experiences into opportunities and amplify positive ones.",
+        llm=llm,
+        verbose=False
+    )
+
+    return Crew(agents=[responder],
+                tasks=[
+                    Task(description="""
+                    Write a professional response to this {sentiment} review for MYBAE Stay Inn.
+                    
+                    Reviewer Name: {reviewer_name}
+                    Review Text: "{review_text}"
+                    
+                    STRICT RULES:
+                    1. If POSITIVE: Thank them warmly, mention a specific detail they liked, invite them back.
+                    2. If NEGATIVE: Apologize sincerely, validate their concern without being defensive, mention we are taking action, offer to take it offline (email: sts261261@gmail.com).
+                    3. If MIXED: Thank them for the positive parts, address the negative parts constructively.
+                    4. Keep it under 150 words.
+                    5. NEVER use generic AI phrases like "We are thrilled" or "We apologize for any inconvenience". Sound like a real human owner.
+                    6. Sign off EXACTLY as:
+                    Warm regards,
+                    Sujesh T S
+                    MYBAE Group
+                    sts261261@gmail.com | 9048081475
+                    """, 
+                    expected_output="Professional, human-sounding review response", 
+                    agent=responder)
+                ], 
+                process=Process.sequential, 
+                verbose=False)
+
+# ==========================================
 # 7. STREAMLIT UI
 # ==========================================
 st.title("🤖 A.R.I.A. Command Center")
 st.markdown("Your Autonomous Revenue & Intelligence Agent. Choose your module below.")
 
 with st.sidebar:
-    st.header("⚙️ Global Settings")
+    st.header("️ Global Settings")
     st.info("Settings apply to all modules")
     auto_email_global = st.checkbox("Send drafts to Telegram for approval", value=True, help="Sends drafts to your Telegram bot. You must reply 'send [ID]' to actually send the email.")
     st.divider()
     st.markdown("### 📊 Quick Stats")
-    st.markdown("- Pipelines: 4 Active")
-    st.markdown("- Agents: 13 Ready")
+    st.markdown("- Pipelines: 5 Active")
+    st.markdown("- Agents: 14 Ready")
     st.markdown("- Status:  Online")
 
-tab1, tab2, tab3, tab4 = st.tabs(["🤝 Vendor Negotiation", "🔄 Content Repurposing", "🎯 Local Lead Gen", "📩 Lead Response & Assets"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["🤝 Vendor Negotiation", "🔄 Content Repurposing", "🎯 Local Lead Gen", "📩 Lead Response & Assets", "⭐ Review Responses"])
 
 # --- TAB 1: VENDOR NEGOTIATION ---
 with tab1:
@@ -390,7 +431,7 @@ with tab2:
             if not source_content or not target_audience:
                 st.error("Please provide source material and target audience.")
             else:
-                with st.spinner(" Analyzing content and generating assets..."):
+                with st.spinner("🧠 Analyzing content and generating assets..."):
                     try:
                         crew = create_repurposing_crew()
                         result = crew.kickoff(inputs={"source_content": source_content, "target_audience": target_audience})
@@ -459,7 +500,7 @@ with tab3:
             with col2:
                 search_location = st.text_input("Target Location to Search *", value=default_loc, placeholder="e.g., Kochi, Alappuzha, Cherthala")
             
-            submit_discovery = st.form_submit_button("🔍 Discover & Generate Outreach", type="primary", use_container_width=True)
+            submit_discovery = st.form_submit_button(" Discover & Generate Outreach", type="primary", use_container_width=True)
         
         if submit_discovery:
             is_valid = True
@@ -471,7 +512,7 @@ with tab3:
                 is_valid = False
             
             if is_valid:
-                with st.spinner("🤖 A.R.I.A. is discovering prospects and generating personalized outreach... (This may take 2-3 minutes)"):
+                with st.spinner(" A.R.I.A. is discovering prospects and generating personalized outreach... (This may take 2-3 minutes)"):
                     try:
                         st.markdown(f"**Searching for {search_category} in {search_location}...**")
                         discovery_crew = create_prospect_finder_crew()
@@ -511,7 +552,7 @@ with tab3:
                                     st.write(f"**Contact:** {comp_contact} ({comp_title})")
                                     st.write(f"**Email:** {comp_email}")
                             
-                            st.subheader(" Generating Personalized Outreach...")
+                            st.subheader("📧 Generating Personalized Outreach...")
                             progress_bar = st.progress(0)
                             
                             for idx, lead in enumerate(discovered_leads):
@@ -536,7 +577,7 @@ with tab3:
                                     lead_email = lead.get('email')
                                     if auto_email_global and isinstance(lead_email, str) and '@' in lead_email:
                                         status_msg = save_and_notify_telegram(lead_email, parsed.get('subject', ''), parsed.get('body', ''), "Local Lead Outreach")
-                                        st.caption(f" {status_msg}")
+                                        st.caption(f"📱 {status_msg}")
                                     else:
                                         st.caption("⚠️ Skipped Telegram notification: No valid prospect email found. Draft is shown above.")
                                     
@@ -589,7 +630,7 @@ with tab3:
                 l_title = st.text_input("Contact Title *", placeholder="e.g., Operations Manager")
                 l_email = st.text_input("Prospect Email *", placeholder="e.g., rahul@keralatravel.com")
             
-            submit_manual = st.form_submit_button("🎯 Generate Lead Outreach", type="primary", use_container_width=True)
+            submit_manual = st.form_submit_button(" Generate Lead Outreach", type="primary", use_container_width=True)
         
         if submit_manual:
             is_valid_manual = True
@@ -661,7 +702,6 @@ with tab4:
                     
                     st.success("✅ Response Generated Successfully!")
                     
-                    # Split on the marker
                     raw_text = result.raw
                     
                     if "---EMAIL---" in raw_text:
@@ -669,12 +709,10 @@ with tab4:
                         profile_section = parts[0].strip()
                         email_section = parts[1].strip()
                     else:
-                        # Fallback
                         profile_section = raw_text
                         email_section = ""
                     
-                    # Show Property Profile
-                    st.subheader("📋 Professional Property Profile")
+                    st.subheader(" Professional Property Profile")
                     st.markdown(profile_section)
                     st.info("💡 **Copy this profile** → Paste into Notion or save as PDF!")
                     
@@ -687,3 +725,37 @@ with tab4:
                 except Exception as e:
                     st.error(f"Error: {e}")
                     logger.error(f"Response crew error: {e}")
+
+# --- TAB 5: REVIEW RESPONSE GENERATOR ---
+with tab5:
+    st.header("⭐ Review Response Generator")
+    st.markdown("Instantly generate professional, empathetic responses to Google, TripAdvisor, or Booking.com reviews.")
+    
+    with st.form("review_form"):
+        reviewer_name = st.text_input("Reviewer Name (Optional)", placeholder="e.g., John Doe or 'Valued Guest'")
+        review_text = st.text_area("Paste the Review *", height=150, placeholder="e.g., Great location but the AC wasn't working properly...")
+        sentiment = st.radio("Review Sentiment", ["Positive", "Negative", "Mixed/Neutral"], horizontal=True)
+        
+        submit_review = st.form_submit_button("✨ Generate Response", type="primary", use_container_width=True)
+    
+    if submit_review:
+        if not review_text:
+            st.error("Please paste the review text.")
+        else:
+            with st.spinner("🤖 A.R.I.A. is crafting the perfect response..."):
+                try:
+                    crew = create_review_crew()
+                    result = crew.kickoff(inputs={
+                        "reviewer_name": reviewer_name if reviewer_name else "Valued Guest",
+                        "review_text": review_text,
+                        "sentiment": sentiment
+                    })
+                    
+                    st.success("✅ Response Generated!")
+                    st.subheader("📝 Your Response")
+                    st.markdown(result.raw)
+                    st.info("💡 **Copy and paste** this directly into Google/TripAdvisor!")
+                    
+                except Exception as e:
+                    st.error(f"Error: {e}")
+                    logger.error(f"Review crew error: {e}")
