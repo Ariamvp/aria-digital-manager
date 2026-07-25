@@ -308,7 +308,7 @@ with tabs[0]:
         col1, col2 = st.columns(2)
         with col1:
             biz_name = st.text_input("Business Name *", value=user_settings.get('business_name', ''))
-            industry = st.selectbox("Industry", ["Hospitality", "Food/FMCG", "Service", "Retail", "Other"], value=0)
+            industry = st.selectbox("Industry", ["Hospitality", "Food/FMCG", "Service", "Retail", "Other"], index=0)
             location = st.text_input("Primary Location *", value=user_settings.get('location', ''))
         with col2:
             contact_info = st.text_input("Contact Info (Name | Phone | Email) *", value=user_settings.get('contact_info', ''))
