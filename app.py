@@ -196,7 +196,7 @@ def create_response_crew():
                     Generate TWO things:
                     
                     === PART 1: PROPERTY PROFILE ===
-                    # 🏨 PROPERTY PROFILE: {business_name}
+                    #  PROPERTY PROFILE: {business_name}
                     
                     ## 📍 Location
                     [Extract]
@@ -213,13 +213,13 @@ def create_response_crew():
                     ## ✨ Amenities
                     [List]
                     
-                    ## 📸 Photos
+                    ##  Photos
                     [List]
                     
-                    ##  Offers
+                    ## 🌟 Offers
                     [List]
                     
-                    ## ️ Nearby
+                    ## 🗺️ Nearby
                     [List]
                     
                     === PART 2: EMAIL ===
@@ -298,15 +298,17 @@ user_settings = get_user_settings(st.session_state['user'].id)
 if user_settings is None:
     user_settings = {}
 
-# Get user role for admin badge
-user_role = get_user_role(st.session_state['user'].id)
+# Get user role for admin badge (with session state caching fix)
+if 'user_role' not in st.session_state:
+    st.session_state['user_role'] = get_user_role(st.session_state['user'].id)
+user_role = st.session_state['user_role']
 
 with st.sidebar:
     st.header(f"👤 {st.session_state['user'].email}")
     
     # Show admin badge if applicable
     if user_role == 'admin':
-        st.markdown(" **ADMIN**")
+        st.markdown("🔴 **ADMIN**")
         st.caption("Unlimited Access")
     else:
         st.caption("14-Day Free Trial Active")
@@ -321,19 +323,19 @@ with st.sidebar:
 st.title("🤖 A.R.I.A. Command Center")
 
 tabs = st.tabs([
-    "⚙️ My Business Settings",
+    "️ My Business Settings",
     "📖 User Manual",
     "🤝 Vendor Negotiation",
-    " Content Repurposing",
+    "🔄 Content Repurposing",
     "🎯 Local Lead Gen",
     "📩 Lead Response",
     "⭐ Review Responses",
-    " WhatsApp Broadcasts"
+    "📱 WhatsApp Broadcasts"
 ])
 
 # TAB 1: BUSINESS SETTINGS
 with tabs[0]:
-    st.header("⚙️ Configure Your Business Profile")
+    st.header("️ Configure Your Business Profile")
     st.markdown("A.R.I.A. uses these details to personalize all outputs.")
     
     with st.form("settings_form"):
@@ -380,9 +382,9 @@ with tabs[1]:
 
 # TAB 3: VENDOR NEGOTIATION
 with tabs[2]:
-    st.header("🤝 Vendor Negotiation")
+    st.header(" Vendor Negotiation")
     if not user_settings.get('contact_info'):
-        st.warning("⚠️ Complete Business Settings first!")
+        st.warning("️ Complete Business Settings first!")
     else:
         with st.form("negotiation_form"):
             v_name = st.text_input("Vendor Name")
@@ -416,7 +418,7 @@ with tabs[3]:
                 result = crew.kickoff(inputs={"source_content": source, "target_audience": audience})
                 parsed = parse_json_output(result.raw)
                 st.success("✅ Generated!")
-                st.subheader("📝 Blog Post")
+                st.subheader(" Blog Post")
                 add_quick_copy(parsed.get('blog', ''))
                 st.markdown(parsed.get('blog', ''))
 
@@ -457,7 +459,7 @@ with tabs[5]:
                 })
                 st.success("✅ Generated!")
                 parts = result.raw.split("---EMAIL---")
-                st.subheader(" Property Profile")
+                st.subheader("📋 Property Profile")
                 add_quick_copy(parts[0])
                 st.markdown(parts[0])
                 if len(parts) > 1:
