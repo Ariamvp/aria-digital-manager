@@ -77,39 +77,34 @@ def login_page():
                     st.error(f"Signup failed: {str(e)}")
 
 def check_trial(user):
-    """Checks if user has access (admin, active trial, or paid)"""
+    """Checks if user has access"""
     from db import supabase_admin
     
-    res = supabase_admin.table("profiles").select(
-        "trial_ends_at, role"
-    ).eq("id", user.id).execute()
-    
-    if not res.data:
-        return False
-    
-    user_data = res.data[0]
-    
-    # ✅ Admin bypass
-    if user_data.get('role') == 'admin':
-        return True
-    
-    # ✅ Extended trial
-    if user_data.get('role') == 'trial_extended':
-        return True
-    
-    # ✅ Check trial date
-    if user_data.get('trial_ends_at'):
-        try:
-            trial_end_str = user_data['trial_ends_at']
-            if trial_end_str.endswith('Z'):
-                trial_end_str = trial_end_str.replace('Z', '+00:00')
-            trial_end = datetime.fromisoformat(trial_end_str)
-            now = datetime.now(timezone.utc)
-            return now < trial_end
-        except:
+    try:
+        res = supabase_admin.table("profiles").select(
+            "trial_ends_at, role"
+        ).eq("id", user.id).execute()
+        
+        if not res.data:
+            return True  # Allow if no data
+        
+        user_data = res.data[0]
+        
+        # ✅ Admin bypass
+        if user_data.get('role') == 'admin':
             return True
-    
-    return False
+        
+        # ✅ Check trial date
+        trial_end = user_data.get('trial_ends_at')
+        if trial_end:
+            trial_end_dt = datetime.fromisoformat(trial_end.replace('Z', '+00:00'))
+            if datetime.now(timezone.utc) < trial_end_dt:
+                return True
+        
+        return False
+    except Exception as e:
+        print(f"Trial check error: {e}")
+        return True  # Allow on error
 
 # ==========================================
 # 3. CREW DEFINITIONS (Using SaaS Owner's API Keys)
