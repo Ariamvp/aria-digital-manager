@@ -12,20 +12,21 @@ from crewai_tools import TavilySearchTool, ScrapeWebsiteTool
 from db import supabase, supabase_admin, get_user_settings, save_user_settings, save_approval
 
 # ==========================================
-# 1. INITIALIZATION
+# 1. INITIALIZATION & THEME
 # ==========================================
 load_dotenv()
 st.set_page_config(page_title="A.R.I.A. SaaS", page_icon="🤖", layout="wide")
 
-# Initialize session state for preferences
+# Initialize session state
 if 'user_type' not in st.session_state:
     st.session_state['user_type'] = "Business Owner"
 if 'theme' not in st.session_state:
     st.session_state['theme'] = "Dark Mode"
+if 'active_module' not in st.session_state:
+    st.session_state['active_module'] = "vendor" # Default module
 
 # Dynamic CSS based on Theme
 is_dark = st.session_state['theme'] == "Dark Mode"
-
 bg_color = "#0A1120" if is_dark else "#F8F9FA"
 panel_color = "#111A2E" if is_dark else "#FFFFFF"
 panel_input = "#0D1626" if is_dark else "#F1F3F5"
@@ -35,17 +36,27 @@ text_mid = "#9AA6C2" if is_dark else "#495057"
 
 st.markdown(f"""
 <style>
+    /* Global */
     .stApp {{ background-color: {bg_color}; color: {text_color}; font-family: 'Inter', system-ui, sans-serif; }}
-    section[data-testid="stSidebar"] {{ background-color: {panel_color} !important; border-right: 1px solid {line_color}; }}
+    
+    /* Sidebar */
+    section[data-testid="stSidebar"] {{ 
+        background-color: {panel_color} !important; 
+        border-right: 1px solid {line_color}; 
+        padding: 20px 15px !important;
+    }}
     section[data-testid="stSidebar"] .stMarkdown, section[data-testid="stSidebar"] label {{ color: {text_color} !important; }}
     
+    /* Inputs */
     .stTextInput > div > div > input, .stTextArea > div > div > textarea, .stSelectbox > div > div > div {{
-        background-color: {panel_input} !important; color: {text_color} !important; border: 1px solid {line_color} !important; border-radius: 8px !important;
+        background-color: {panel_input} !important; color: {text_color} !important; 
+        border: 1px solid {line_color} !important; border-radius: 8px !important;
     }}
     .stTextInput > div > div > input:focus, .stTextArea > div > div > textarea:focus, .stSelectbox > div > div > div:focus {{
         border-color: #5EEAD4 !important; box-shadow: 0 0 0 1px #5EEAD4 !important;
     }}
     
+    /* Buttons */
     .stButton > button[kind="primary"] {{
         background-color: #FFB454 !important; color: #211505 !important; border: 1px solid #FFB454 !important;
         border-radius: 8px !important; font-weight: 600 !important; transition: all 0.15s ease !important;
@@ -58,16 +69,15 @@ st.markdown(f"""
     }}
     .stButton > button[kind="secondary"]:hover {{ border-color: #5C6785 !important; background-color: {panel_input} !important; }}
 
-    .stTabs [data-baseweb="tab-list"] {{ gap: 2px; background-color: {bg_color}; border-bottom: 1px solid {line_color}; }}
-    .stTabs [data-baseweb="tab"] {{
-        background-color: {panel_color}; border-radius: 8px 8px 0 0 !important; border: 1px solid {line_color} !important;
-        border-bottom: none !important; color: {text_mid} !important; font-weight: 500 !important; padding: 10px 16px !important;
-    }}
-    .stTabs [aria-selected="true"] {{ background-color: #16213A !important; color: {text_color} !important; border-color: {line_color} !important; border-bottom: 2px solid #FFB454 !important; }}
-
+    /* Code Blocks */
     .stCodeBlock {{ background-color: {panel_input} !important; border: 1px solid {line_color} !important; border-radius: 8px !important; }}
+    
+    /* Hide Streamlit Branding */
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     .stMarkdown p, .stMarkdown li, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {{ color: {text_color}; }}
+    
+    /* Custom Sidebar Section Headers */
+    .sidebar-header {{ font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: {text_mid}; margin-bottom: 10px; margin-top: 20px; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -99,7 +109,6 @@ def add_quick_copy(text):
 def login_page():
     st.title("🤖 Welcome to A.R.I.A.")
     st.markdown("Your Autonomous Revenue & Intelligence Agent.")
-    
     tab_login, tab_signup = st.tabs(["Login", "Sign Up"])
     
     with tab_login:
@@ -107,7 +116,6 @@ def login_page():
             email = st.text_input("Email")
             password = st.text_input("Password", type="password")
             submit = st.form_submit_button("Login", use_container_width=True)
-            
             if submit:
                 try:
                     res = supabase.auth.sign_in_with_password({"email": email, "password": password})
@@ -123,7 +131,6 @@ def login_page():
             email = st.text_input("Email")
             password = st.text_input("Password (min 6 chars)", type="password")
             submit = st.form_submit_button("Create Account & Start 14-Day Trial", use_container_width=True)
-            
             if submit:
                 try:
                     res = supabase.auth.sign_up({"email": email, "password": password, "options": {"data": {"full_name": name}}})
@@ -132,43 +139,27 @@ def login_page():
                     st.error(f"Signup failed: {str(e)}")
 
 def check_trial(user):
-    """Checks if user has access"""
     try:
-        res = supabase_admin.table("profiles").select(
-            "trial_ends_at, role"
-        ).eq("id", user.id).execute()
-        
-        if not res.data:
-            return True
-        
+        res = supabase_admin.table("profiles").select("trial_ends_at, role").eq("id", user.id).execute()
+        if not res.data: return True
         user_data = res.data[0]
-        
-        if user_data.get('role') == 'admin':
-            return True
-        
+        if user_data.get('role') == 'admin': return True
         trial_end = user_data.get('trial_ends_at')
         if trial_end:
             trial_end_dt = datetime.fromisoformat(trial_end.replace('Z', '+00:00'))
-            if datetime.now(timezone.utc) < trial_end_dt:
-                return True
-        
+            if datetime.now(timezone.utc) < trial_end_dt: return True
         return False
-    except Exception as e:
-        print(f"Trial check error: {e}")
-        return True
+    except: return True
 
 def get_user_role(user_id):
-    """Get the user's role from profiles table"""
     try:
         res = supabase_admin.table("profiles").select("role").eq("id", user_id).execute()
-        if res.data:
-            return res.data[0].get('role', 'user')
+        if res.data: return res.data[0].get('role', 'user')
         return 'user'
-    except:
-        return 'user'
+    except: return 'user'
 
 # ==========================================
-# 3. CREW DEFINITIONS (Using SaaS Owner's API Keys)
+# 3. CREW DEFINITIONS
 # ==========================================
 @st.cache_resource
 def create_negotiation_crew():
@@ -178,14 +169,12 @@ def create_negotiation_crew():
     strategist = Agent(role="Procurement Strategist", goal="Develop negotiation leverage.", backstory="Veteran expert.", llm=llm, verbose=False)
     drafter = Agent(role="Copywriter", goal="Draft professional email.", backstory="Specialist in vendor comms.", llm=llm, verbose=False)
     qa = Agent(role="QA Director", goal="Format as JSON.", backstory="Ensures JSON format.", llm=llm, verbose=False)
-
-    return Crew(agents=[researcher, strategist, drafter, qa], 
-                tasks=[
-                    Task(description="Research {vendor_name} and {current_service}. Find 2-3 competitors with pricing.", expected_output="Competitor summary.", agent=researcher),
-                    Task(description="Develop strategy for {vendor_name}. We pay ${monthly_cost}/mo.", expected_output="Strategy.", agent=strategist),
-                    Task(description="Draft email to {vendor_name}. Sign as: {contact_info}", expected_output="Draft.", agent=drafter),
-                    Task(description='Output strict JSON: {"subject": "...", "body": "..."}', expected_output="JSON", agent=qa)
-                ], process=Process.sequential, verbose=False)
+    return Crew(agents=[researcher, strategist, drafter, qa], tasks=[
+        Task(description="Research {vendor_name} and {current_service}. Find 2-3 competitors with pricing.", expected_output="Competitor summary.", agent=researcher),
+        Task(description="Develop strategy for {vendor_name}. We pay ${monthly_cost}/mo.", expected_output="Strategy.", agent=strategist),
+        Task(description="Draft email to {vendor_name}. Sign as: {contact_info}", expected_output="Draft.", agent=drafter),
+        Task(description='Output strict JSON: {{"subject": "...", "body": "..."}}', expected_output="JSON", agent=qa)
+    ], process=Process.sequential, verbose=False)
 
 @st.cache_resource
 def create_repurposing_crew():
@@ -195,139 +184,81 @@ def create_repurposing_crew():
     social_manager = Agent(role="Social Media Manager", goal="Create viral posts.", backstory="Social expert.", llm=llm, verbose=False)
     newsletter_writer = Agent(role="Email Expert", goal="Write newsletter.", backstory="High open-rate expert.", llm=llm, verbose=False)
     qa = Agent(role="Content QA", goal="Format as JSON.", backstory="JSON formatter.", llm=llm, verbose=False)
-
-    return Crew(agents=[analyst, blog_writer, social_manager, newsletter_writer, qa],
-                tasks=[
-                    Task(description="Analyze: {source_content}. Target: {target_audience}.", expected_output="Analysis.", agent=analyst),
-                    Task(description="Write 500-word SEO blog post.", expected_output="Blog.", agent=blog_writer),
-                    Task(description="Write LinkedIn post, Twitter thread, IG caption.", expected_output="Social.", agent=social_manager),
-                    Task(description="Write newsletter email.", expected_output="Newsletter.", agent=newsletter_writer),
-                    Task(description='Format ALL into JSON: {"blog": "...", "linkedin": "...", "twitter": "...", "instagram": "...", "newsletter": "..."}', expected_output="JSON", agent=qa)
-                ], process=Process.sequential, verbose=False)
+    return Crew(agents=[analyst, blog_writer, social_manager, newsletter_writer, qa], tasks=[
+        Task(description="Analyze: {source_content}. Target: {target_audience}.", expected_output="Analysis.", agent=analyst),
+        Task(description="Write 500-word SEO blog post.", expected_output="Blog.", agent=blog_writer),
+        Task(description="Write LinkedIn post, Twitter thread, IG caption.", expected_output="Social.", agent=social_manager),
+        Task(description="Write newsletter email.", expected_output="Newsletter.", agent=newsletter_writer),
+        Task(description='Format ALL into JSON: {{"blog": "...", "linkedin": "...", "twitter": "...", "instagram": "...", "newsletter": "..."}}', expected_output="JSON", agent=qa)
+    ], process=Process.sequential, verbose=False)
 
 @st.cache_resource
 def create_prospect_finder_crew():
     llm = LLM(model="gpt-4o")
     tavily_tool = TavilySearchTool()
     scrape_tool = ScrapeWebsiteTool()
-
     finder = Agent(role="Lead Discovery Specialist", goal="Find {category} in {location}.", backstory="Expert B2B lead finder.", llm=llm, tools=[tavily_tool, scrape_tool], verbose=False)
     qualifier = Agent(role="Lead Qualification Analyst", goal="Format leads as JSON.", backstory="Data formatter.", llm=llm, verbose=False)
-
-    return Crew(agents=[finder, qualifier],
-                tasks=[
-                    Task(description="Search for {category} in {location}. Find {num_leads} businesses. Extract: company, website, contact_name, contact_title, email.", expected_output="JSON array of leads", agent=finder),
-                    Task(description="Format leads into strict JSON array.", expected_output="JSON", agent=qualifier)
-                ], process=Process.sequential, verbose=False)
-
-@st.cache_resource
-def create_local_lead_crew():
-    llm = LLM(model="gpt-4o")
-    tavily_tool = TavilySearchTool()
-    researcher = Agent(role="Local Business Researcher", goal="Find triggers about {company}.", backstory="Expert in local business.", llm=llm, tools=[tavily_tool], verbose=False)
-    writer = Agent(role="Partnership Copywriter", goal="Draft warm B2B emails.", backstory="Local partnership expert.", llm=llm, verbose=False)
-    qa = Agent(role="QA Director", goal="Output JSON.", backstory="JSON validator.", llm=llm, verbose=False)
-
-    return Crew(agents=[researcher, writer, qa],
-                tasks=[
-                    Task(description="Research {company} ({website}). Find ONE recent trigger.", expected_output="Trigger summary.", agent=researcher),
-                    Task(description="Draft email to {contact_name} at {company}. PITCH: {business_pitch}. Sign as: {contact_info}. <120 words.", expected_output="Draft.", agent=writer),
-                    Task(description='Output strict JSON: {"subject": "...", "body": "..."}', expected_output="JSON", agent=qa)
-                ], process=Process.sequential, verbose=False)
+    return Crew(agents=[finder, qualifier], tasks=[
+        Task(description="Search for {category} in {location}. Find {num_leads} businesses. Extract: company, website, contact_name, contact_title, email.", expected_output="JSON array of leads", agent=finder),
+        Task(description="Format leads into strict JSON array.", expected_output="JSON", agent=qualifier)
+    ], process=Process.sequential, verbose=False)
 
 @st.cache_resource
 def create_response_crew():
     llm = LLM(model="gpt-4o")
     writer = Agent(role="Hospitality Specialist", goal="Create Property Profile AND email.", backstory="Partnership expert.", llm=llm, verbose=False)
-
-    return Crew(agents=[writer],
-                tasks=[
-                    Task(description="""
-                    You received: {incoming_request}
-                    Business details: {raw_business_details}
-                    
-                    Generate TWO things:
-                    
-                    === PART 1: PROPERTY PROFILE ===
-                    #  PROPERTY PROFILE: {business_name}
-                    
-                    ## 📍 Location
-                    [Extract]
-                    
-                    ## 🛏️ Rooms
-                    [List]
-                    
-                    ## 💰 Rates
-                    [List]
-                    
-                    ## 🍽️ Meals
-                    [List]
-                    
-                    ## ✨ Amenities
-                    [List]
-                    
-                    ## 📸 Photos
-                    [List]
-                    
-                    ## 🌟 Offers
-                    [List]
-                    
-                    ## 🗺️ Nearby
-                    [List]
-                    
-                    === PART 2: EMAIL ===
-                    Write short email (<100 words):
-                    1. Extract sender name from the incoming request. If the request is blank or no name is found, use "Valued Partner".
-                    2. Start "Dear [Sender Name or Valued Partner],"
-                    3. Thank them for their interest in {business_name}.
-                    4. Say "Please find our detailed Property Profile above."
-                    5. Sign off professionally using exactly this contact info: {contact_info}
-                    
-                    OUTPUT: Profile first, then "---EMAIL---" marker, then email.
-                    """, expected_output="Profile + ---EMAIL--- + Email", agent=writer)
-                ], process=Process.sequential, verbose=False)
+    return Crew(agents=[writer], tasks=[
+        Task(description="""
+        You received: {incoming_request}
+        Business details: {raw_business_details}
+        
+        Generate TWO things:
+        === PART 1: PROPERTY PROFILE ===
+        #  PROPERTY PROFILE: {business_name}
+        ## 📍 Location, 🛏️ Rooms, 💰 Rates, 🍽️ Meals, ✨ Amenities, 📸 Photos,  Offers, 🗺️ Nearby (Extract from details)
+        
+        === PART 2: EMAIL ===
+        Write short email (<100 words):
+        1. Extract sender name. If blank, use "Valued Partner".
+        2. Start "Dear [Name],"
+        3. Thank them for interest in {business_name}.
+        4. Say "Please find our detailed Property Profile above."
+        5. Sign off professionally using exactly this contact info: {contact_info}
+        
+        OUTPUT: Profile first, then "---EMAIL---" marker, then email.
+        """, expected_output="Profile + ---EMAIL--- + Email", agent=writer)
+    ], process=Process.sequential, verbose=False)
 
 @st.cache_resource
 def create_review_crew():
     llm = LLM(model="gpt-4o")
     responder = Agent(role="Reputation Manager", goal="Write review responses.", backstory="Guest relations expert.", llm=llm, verbose=False)
-
-    return Crew(agents=[responder],
-                tasks=[
-                    Task(description="""
-                    Respond to this {sentiment} review.
-                    Reviewer: {reviewer_name}
-                    Review: "{review_text}"
-                    
-                    RULES:
-                    - If POSITIVE: Thank warmly, mention specifics, invite back
-                    - If NEGATIVE: Apologize sincerely, validate concern, offer offline resolution
-                    - Keep under 150 words
-                    - Sign as: {contact_info}
-                    """, expected_output="Professional response", agent=responder)
-                ], process=Process.sequential, verbose=False)
+    return Crew(agents=[responder], tasks=[
+        Task(description="""
+        Respond to this {sentiment} review.
+        Reviewer: {reviewer_name}
+        Review: "{review_text}"
+        RULES:
+        - If POSITIVE: Thank warmly, mention specifics, invite back
+        - If NEGATIVE: Apologize sincerely, validate concern, offer offline resolution
+        - Keep under 150 words. Sign as: {contact_info}
+        """, expected_output="Professional response", agent=responder)
+    ], process=Process.sequential, verbose=False)
 
 @st.cache_resource
 def create_whatsapp_crew():
     llm = LLM(model="gpt-4o")
     expert = Agent(role="WhatsApp Marketing Specialist", goal="Create engaging broadcasts.", backstory="WhatsApp expert.", llm=llm, verbose=False)
-
-    return Crew(agents=[expert],
-                tasks=[
-                    Task(description="""
-                    Create WhatsApp broadcast for {business_name}.
-                    Type: {broadcast_type}
-                    Details: {specific_details}
-                    Contact: {contact_info}
-                    
-                    RULES:
-                    - Use *asterisks* for bold
-                    - Use emojis (1-2 per line max)
-                    - Keep under 150 words
-                    - Include clear CTA
-                    - Add "Reply STOP to unsubscribe"
-                    """, expected_output="WhatsApp message", agent=expert)
-                ], process=Process.sequential, verbose=False)
+    return Crew(agents=[expert], tasks=[
+        Task(description="""
+        Create WhatsApp broadcast for {business_name}.
+        Type: {broadcast_type}
+        Details: {specific_details}
+        Contact: {contact_info}
+        RULES: Use *asterisks* for bold, emojis (1-2 per line max), keep under 150 words, include clear CTA, add "Reply STOP to unsubscribe".
+        """, expected_output="WhatsApp message", agent=expert)
+    ], process=Process.sequential, verbose=False)
 
 def parse_json_output(raw_output):
     try:
@@ -344,12 +275,12 @@ def show_user_manual():
     st.markdown("""
     **Welcome to A.R.I.A.!** Here is how to get the most out of your AI workforce:
     
-    ### 🚀 Getting Started
-    1. **Business Owners:** Fill out **⚙️ My Business Settings** first - A.R.I.A. uses this to personalize all outputs.
+    ###  Getting Started
+    1. **Business Owners:** Fill out **⚙️ Business Settings** first - A.R.I.A. uses this to personalize all outputs.
     2. **Educational Users:** You can skip settings and test all modules freely with dummy data!
     
-    ###  How to Use Each Module
-    - ** Local Lead Gen:** Find real businesses in your target area. The AI researches and drafts personalized emails.
+    ### 🧠 How to Use Each Module
+    - **🎯 Local Lead Gen:** Find real businesses in your target area. The AI researches and drafts personalized emails.
     - **📩 Lead Response:** When clients reply to you, paste their inquiry here. A.R.I.A. generates a property profile and professional reply.
     - **⭐ Review Responses:** Paste any review (positive or negative). A.R.I.A. drafts an empathetic, brand-safe response.
     - **🔄 Content Repurposing:** Feed it one piece of content. Get a full week of marketing materials.
@@ -375,50 +306,59 @@ if not check_trial(st.session_state['user']):
     st.error("Your 14-day free trial has expired. Please upgrade.")
     st.stop()
 
-user_settings = get_user_settings(st.session_state['user'].id)
-if user_settings is None:
-    user_settings = {}
+user_settings = get_user_settings(st.session_state['user'].id) or {}
+user_role = get_user_role(st.session_state['user'].id)
 
-# Get user role for admin badge
-if 'user_role' not in st.session_state:
-    st.session_state['user_role'] = get_user_role(st.session_state['user'].id)
-user_role = st.session_state['user_role']
-
-# --- SIDEBAR ---
+# --- SIDEBAR (LEFT PANEL) ---
 with st.sidebar:
-    st.header(f"👤 {st.session_state['user'].email}")
+    st.header("🤖 A.R.I.A.")
+    st.subheader(f"👤 {st.session_state['user'].email}")
     
-    # Show admin badge if applicable
     if user_role == 'admin':
-        st.markdown("🔴 **ADMIN**")
-        st.caption("Unlimited Access")
+        st.markdown("🔴 **ADMIN** · Unlimited Access")
     else:
-        st.caption("14-Day Free Trial Active")
+        st.markdown(" **14-Day Free Trial Active**")
     
     st.divider()
     
-    # Dynamic Tabs based on User Type
-    tab_names = []
+    # Navigation Menu
+    st.markdown('<div class="sidebar-header">🧭 Modules</div>', unsafe_allow_html=True)
+    
+    # Business Settings (Only for Business Owners)
     if st.session_state['user_type'] == "Business Owner":
-        tab_names.append("⚙️ My Business Settings")
-    
-    tab_names.extend([
-        "🤝 Vendor Negotiation",
-        "🔄 Content Repurposing",
-        "🎯 Local Lead Gen",
-        "📩 Lead Response",
-        "⭐ Review Responses",
-        "📱 WhatsApp Broadcasts"
-    ])
-    
-    tabs = st.tabs(tab_names)
-    
+        btn_settings = st.button("⚙️ Business Settings", use_container_width=True, 
+                                 type="primary" if st.session_state['active_module'] == 'settings' else "secondary")
+        if btn_settings: st.session_state['active_module'] = 'settings'
+        
+    btn_vendor = st.button("🤝 Vendor Negotiation", use_container_width=True, 
+                           type="primary" if st.session_state['active_module'] == 'vendor' else "secondary")
+    if btn_vendor: st.session_state['active_module'] = 'vendor'
+        
+    btn_content = st.button(" Content Repurposing", use_container_width=True, 
+                            type="primary" if st.session_state['active_module'] == 'content' else "secondary")
+    if btn_content: st.session_state['active_module'] = 'content'
+        
+    btn_leadgen = st.button("🎯 Local Lead Gen", use_container_width=True, 
+                            type="primary" if st.session_state['active_module'] == 'leadgen' else "secondary")
+    if btn_leadgen: st.session_state['active_module'] = 'leadgen'
+        
+    btn_response = st.button("📩 Lead Response", use_container_width=True, 
+                             type="primary" if st.session_state['active_module'] == 'response' else "secondary")
+    if btn_response: st.session_state['active_module'] = 'response'
+        
+    btn_review = st.button("⭐ Review Responses", use_container_width=True, 
+                           type="primary" if st.session_state['active_module'] == 'review' else "secondary")
+    if btn_review: st.session_state['active_module'] = 'review'
+        
+    btn_whatsapp = st.button("📱 WhatsApp Broadcasts", use_container_width=True, 
+                             type="primary" if st.session_state['active_module'] == 'whatsapp' else "secondary")
+    if btn_whatsapp: st.session_state['active_module'] = 'whatsapp'
+
     st.divider()
     
-    # --- BOTTOM PREFERENCES (Above Logout) ---
-    st.markdown("##### ⚙️ Preferences")
+    # Preferences Section
+    st.markdown('<div class="sidebar-header">️ Preferences</div>', unsafe_allow_html=True)
     
-    # 1. User Type Selector
     new_user_type = st.selectbox(
         "Account Type",
         options=["Business Owner", "Educational User / Other"],
@@ -427,9 +367,10 @@ with st.sidebar:
     )
     if new_user_type != st.session_state['user_type']:
         st.session_state['user_type'] = new_user_type
+        if new_user_type == "Educational User / Other" and st.session_state['active_module'] == 'settings':
+            st.session_state['active_module'] = 'vendor' # Reset to default if settings is hidden
         st.rerun()
         
-    # 2. Theme Selector
     new_theme = st.selectbox(
         "Theme",
         options=["Dark Mode", "Light Mode"],
@@ -439,63 +380,56 @@ with st.sidebar:
         st.session_state['theme'] = new_theme
         st.rerun()
         
-    # 3. User Manual Button
-    if st.button(" Open User Manual", use_container_width=True, type="secondary"):
+    if st.button("📖 Open User Manual", use_container_width=True, type="secondary"):
         show_user_manual()
         
     st.divider()
     
-    # 4. Logout
     if st.button("🚪 Logout", use_container_width=True, type="secondary"):
         supabase.auth.sign_out()
         st.session_state.clear()
         st.rerun()
 
-# --- MAIN CONTENT AREA ---
-st.title("🤖 A.R.I.A. Command Center")
+# --- MAIN AREA (RIGHT PANEL) ---
+active = st.session_state['active_module']
 
-# Shift tab indices if Business Settings is present
-offset = 1 if st.session_state['user_type'] == "Business Owner" else 0
+# 1. BUSINESS SETTINGS
+if active == 'settings' and st.session_state['user_type'] == "Business Owner":
+    st.header("️ Configure Your Business Profile")
+    st.markdown("A.R.I.A. uses these details to personalize all outputs.")
+    with st.form("settings_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            biz_name = st.text_input("Business Name *", value=user_settings.get('business_name', ''))
+            industry = st.selectbox("Industry", ["Hospitality", "Food/FMCG", "Service", "Retail", "Other"], index=0)
+            location = st.text_input("Primary Location *", value=user_settings.get('location', ''))
+        with col2:
+            contact_info = st.text_input("Contact Info (Name | Phone | Email) *", value=user_settings.get('contact_info', ''))
+            biz_pitch = st.text_area("Core Pitch *", height=100, value=user_settings.get('business_pitch', ''))
+            
+        st.subheader("🔐 Integration Credentials")
+        col3, col4 = st.columns(2)
+        with col3:
+            gmail_pw = st.text_input("Gmail App Password", type="password", value=user_settings.get('gmail_app_password', ''))
+            tg_token = st.text_input("Telegram Bot Token", type="password", value=user_settings.get('telegram_bot_token', ''))
+        with col4:
+            tg_chat = st.text_input("Telegram Chat ID", value=user_settings.get('telegram_chat_id', ''))
 
-# TAB 0: BUSINESS SETTINGS (Only for Business Owners)
-if st.session_state['user_type'] == "Business Owner" and len(tabs) > 0:
-    with tabs[0]:
-        st.header("⚙️ Configure Your Business Profile")
-        st.markdown("A.R.I.A. uses these details to personalize all outputs.")
-        
-        with st.form("settings_form"):
-            col1, col2 = st.columns(2)
-            with col1:
-                biz_name = st.text_input("Business Name *", value=user_settings.get('business_name', ''))
-                industry = st.selectbox("Industry", ["Hospitality", "Food/FMCG", "Service", "Retail", "Other"], index=0)
-                location = st.text_input("Primary Location *", value=user_settings.get('location', ''))
-            with col2:
-                contact_info = st.text_input("Contact Info (Name | Phone | Email) *", value=user_settings.get('contact_info', ''))
-                biz_pitch = st.text_area("Core Pitch *", height=100, value=user_settings.get('business_pitch', ''))
-                
-            st.subheader("🔐 Integration Credentials")
-            col3, col4 = st.columns(2)
-            with col3:
-                gmail_pw = st.text_input("Gmail App Password", type="password", value=user_settings.get('gmail_app_password', ''))
-                tg_token = st.text_input("Telegram Bot Token", type="password", value=user_settings.get('telegram_bot_token', ''))
-            with col4:
-                tg_chat = st.text_input("Telegram Chat ID", value=user_settings.get('telegram_chat_id', ''))
+        if st.form_submit_button("💾 Save Settings", type="primary", use_container_width=True):
+            save_user_settings(st.session_state['user'].id, {
+                "business_name": biz_name, "industry": industry, "location": location,
+                "contact_info": contact_info, "business_pitch": biz_pitch,
+                "gmail_app_password": gmail_pw, "telegram_bot_token": tg_token,
+                "telegram_chat_id": tg_chat
+            })
+            st.success("✅ Settings saved!")
+            st.rerun()
 
-            if st.form_submit_button("💾 Save Settings", type="primary", use_container_width=True):
-                save_user_settings(st.session_state['user'].id, {
-                    "business_name": biz_name, "industry": industry, "location": location,
-                    "contact_info": contact_info, "business_pitch": biz_pitch,
-                    "gmail_app_password": gmail_pw, "telegram_bot_token": tg_token,
-                    "telegram_chat_id": tg_chat
-                })
-                st.success("✅ Settings saved!")
-                st.rerun()
-
-# TAB: VENDOR NEGOTIATION
-with tabs[0 + offset]:
+# 2. VENDOR NEGOTIATION
+elif active == 'vendor':
     st.header("🤝 Vendor Negotiation")
     if st.session_state['user_type'] == "Educational User / Other":
-        st.info("🎓 **Educational Mode:** You can test this module freely! (Note: Emails won't actually send without business credentials).")
+        st.info("🎓 **Educational Mode:** You can test this module freely!")
     elif not user_settings.get('contact_info'):
         st.warning("⚠️ Complete Business Settings first!")
     else:
@@ -518,11 +452,11 @@ with tabs[0 + offset]:
                     add_quick_copy(parsed.get('body', ''))
                     st.code(parsed.get('body', ''), language="text")
 
-# TAB: CONTENT REPURPOSING
-with tabs[1 + offset]:
+# 3. CONTENT REPURPOSING
+elif active == 'content':
     st.header("🔄 Content Repurposing")
     if st.session_state['user_type'] == "Educational User / Other":
-        st.info(" **Educational Mode:** Test freely with any content!")
+        st.info("🎓 **Educational Mode:** Test freely with any content!")
     
     with st.form("repurpose_form"):
         source = st.text_area("Source Material", height=150)
@@ -538,20 +472,20 @@ with tabs[1 + offset]:
                 add_quick_copy(parsed.get('blog', ''))
                 st.markdown(parsed.get('blog', ''))
 
-# TAB: LOCAL LEAD GEN
-with tabs[2 + offset]:
-    st.header(" Local Lead Discovery")
+# 4. LOCAL LEAD GEN
+elif active == 'leadgen':
+    st.header("🎯 Local Lead Discovery")
     if st.session_state['user_type'] == "Educational User / Other":
         st.info("🎓 **Educational Mode:** Find leads freely!")
     elif not user_settings.get('business_pitch'):
-        st.warning("️ Complete Business Settings first!")
+        st.warning("⚠️ Complete Business Settings first!")
     else:
         with st.form("lead_form"):
             category = st.text_input("Target Category", value="tour operators")
             location_search = st.text_input("Location", value=user_settings.get('location', ''))
             num_leads = st.slider("Number of Leads", 3, 10, 5)
             
-            if st.form_submit_button("🔍 Find Leads", type="primary"):
+            if st.form_submit_button(" Find Leads", type="primary"):
                 with st.spinner("Searching..."):
                     crew = create_prospect_finder_crew()
                     result = crew.kickoff(inputs={
@@ -560,8 +494,8 @@ with tabs[2 + offset]:
                     st.success("✅ Leads Found!")
                     st.code(result.raw, language="json")
 
-# TAB: LEAD RESPONSE
-with tabs[3 + offset]:
+# 5. LEAD RESPONSE
+elif active == 'response':
     st.header("📩 Lead Response & Assets")
     if st.session_state['user_type'] == "Educational User / Other":
         st.info("🎓 **Educational Mode:** Test with any lead inquiry!")
@@ -585,15 +519,15 @@ with tabs[3 + offset]:
                 st.markdown(parts[0])
                 if len(parts) > 1:
                     st.divider()
-                    st.subheader(" Email Reply")
+                    st.subheader("📧 Email Reply")
                     add_quick_copy(parts[1])
                     st.markdown(parts[1])
 
-# TAB: REVIEW RESPONSES
-with tabs[4 + offset]:
+# 6. REVIEW RESPONSES
+elif active == 'review':
     st.header("⭐ Review Response Generator")
     if st.session_state['user_type'] == "Educational User / Other":
-        st.info(" **Educational Mode:** Test with any review!")
+        st.info("🎓 **Educational Mode:** Test with any review!")
     
     with st.form("review_form"):
         reviewer = st.text_input("Reviewer Name")
@@ -611,13 +545,13 @@ with tabs[4 + offset]:
                 add_quick_copy(result.raw)
                 st.markdown(result.raw)
 
-# TAB: WHATSAPP BROADCASTS
-with tabs[5 + offset]:
+# 7. WHATSAPP BROADCASTS
+elif active == 'whatsapp':
     st.header("📱 WhatsApp Broadcast Generator")
     if st.session_state['user_type'] == "Educational User / Other":
         st.info("🎓 **Educational Mode:** Create broadcasts freely!")
     elif not user_settings.get('business_name'):
-        st.warning("⚠️ Complete Business Settings first!")
+        st.warning("️ Complete Business Settings first!")
     else:
         with st.form("wa_form"):
             btype = st.selectbox("Type", ["Special Offer", "Festival Greeting", "Welcome Back"])
