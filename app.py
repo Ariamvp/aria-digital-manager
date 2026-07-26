@@ -17,13 +17,67 @@ from db import supabase, supabase_admin, get_user_settings, save_user_settings, 
 load_dotenv()
 st.set_page_config(page_title="A.R.I.A. SaaS", page_icon="🤖", layout="wide")
 
+# Initialize session state for preferences
+if 'user_type' not in st.session_state:
+    st.session_state['user_type'] = "Business Owner"
+if 'theme' not in st.session_state:
+    st.session_state['theme'] = "Dark Mode"
+
+# Dynamic CSS based on Theme
+is_dark = st.session_state['theme'] == "Dark Mode"
+
+bg_color = "#0A1120" if is_dark else "#F8F9FA"
+panel_color = "#111A2E" if is_dark else "#FFFFFF"
+panel_input = "#0D1626" if is_dark else "#F1F3F5"
+line_color = "#223052" if is_dark else "#DEE2E6"
+text_color = "#E7ECF6" if is_dark else "#212529"
+text_mid = "#9AA6C2" if is_dark else "#495057"
+
+st.markdown(f"""
+<style>
+    .stApp {{ background-color: {bg_color}; color: {text_color}; font-family: 'Inter', system-ui, sans-serif; }}
+    section[data-testid="stSidebar"] {{ background-color: {panel_color} !important; border-right: 1px solid {line_color}; }}
+    section[data-testid="stSidebar"] .stMarkdown, section[data-testid="stSidebar"] label {{ color: {text_color} !important; }}
+    
+    .stTextInput > div > div > input, .stTextArea > div > div > textarea, .stSelectbox > div > div > div {{
+        background-color: {panel_input} !important; color: {text_color} !important; border: 1px solid {line_color} !important; border-radius: 8px !important;
+    }}
+    .stTextInput > div > div > input:focus, .stTextArea > div > div > textarea:focus, .stSelectbox > div > div > div:focus {{
+        border-color: #5EEAD4 !important; box-shadow: 0 0 0 1px #5EEAD4 !important;
+    }}
+    
+    .stButton > button[kind="primary"] {{
+        background-color: #FFB454 !important; color: #211505 !important; border: 1px solid #FFB454 !important;
+        border-radius: 8px !important; font-weight: 600 !important; transition: all 0.15s ease !important;
+    }}
+    .stButton > button[kind="primary"]:hover {{ background-color: #FFC578 !important; transform: translateY(-1px) !important; }}
+    
+    .stButton > button[kind="secondary"] {{
+        background-color: transparent !important; color: {text_color} !important; border: 1px solid {line_color} !important;
+        border-radius: 8px !important; font-weight: 500 !important; transition: all 0.15s ease !important;
+    }}
+    .stButton > button[kind="secondary"]:hover {{ border-color: #5C6785 !important; background-color: {panel_input} !important; }}
+
+    .stTabs [data-baseweb="tab-list"] {{ gap: 2px; background-color: {bg_color}; border-bottom: 1px solid {line_color}; }}
+    .stTabs [data-baseweb="tab"] {{
+        background-color: {panel_color}; border-radius: 8px 8px 0 0 !important; border: 1px solid {line_color} !important;
+        border-bottom: none !important; color: {text_mid} !important; font-weight: 500 !important; padding: 10px 16px !important;
+    }}
+    .stTabs [aria-selected="true"] {{ background-color: #16213A !important; color: {text_color} !important; border-color: {line_color} !important; border-bottom: 2px solid #FFB454 !important; }}
+
+    .stCodeBlock {{ background-color: {panel_input} !important; border: 1px solid {line_color} !important; border-radius: 8px !important; }}
+    #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
+    .stMarkdown p, .stMarkdown li, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {{ color: {text_color}; }}
+</style>
+""", unsafe_allow_html=True)
+
 # Helper: Quick Copy Button
 def add_quick_copy(text):
     safe_text = text.replace("\\", "\\\\").replace("'", "\\'").replace("`", "\\`").replace("\n", "\\n").replace("\r", "")
     btn_id = f"btn_{uuid.uuid4().hex[:8]}"
     st.markdown(
         f"""
-        <button id="{btn_id}" style="background-color: #f0f2f6; border: 1px solid #ccc; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 13px; margin-bottom: 10px;">
+        <button id="{btn_id}" style="background-color: {panel_input}; border: 1px solid {line_color}; color: {text_color}; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 13px; margin-bottom: 10px;">
             📋 Copy to Clipboard
         </button>
         <script>
@@ -31,7 +85,8 @@ def add_quick_copy(text):
                 navigator.clipboard.writeText('{safe_text}');
                 this.innerHTML = "✅ Copied!";
                 this.style.backgroundColor = "#d4edda";
-                setTimeout(() => {{ this.innerHTML = "📋 Copy to Clipboard"; this.style.backgroundColor = "#f0f2f6"; }}, 2000);
+                this.style.color = "#155724";
+                setTimeout(() => {{ this.innerHTML = "📋 Copy to Clipboard"; this.style.backgroundColor = "{panel_input}"; this.style.color = "{text_color}"; }}, 2000);
             }};
         </script>
         """,
@@ -84,15 +139,13 @@ def check_trial(user):
         ).eq("id", user.id).execute()
         
         if not res.data:
-            return True  # Allow if no data
+            return True
         
         user_data = res.data[0]
         
-        # ✅ Admin bypass
         if user_data.get('role') == 'admin':
             return True
         
-        # ✅ Check trial date
         trial_end = user_data.get('trial_ends_at')
         if trial_end:
             trial_end_dt = datetime.fromisoformat(trial_end.replace('Z', '+00:00'))
@@ -102,7 +155,7 @@ def check_trial(user):
         return False
     except Exception as e:
         print(f"Trial check error: {e}")
-        return True  # Allow on error
+        return True
 
 def get_user_role(user_id):
     """Get the user's role from profiles table"""
@@ -213,7 +266,7 @@ def create_response_crew():
                     ## ✨ Amenities
                     [List]
                     
-                    ##  Photos
+                    ## 📸 Photos
                     [List]
                     
                     ## 🌟 Offers
@@ -224,11 +277,11 @@ def create_response_crew():
                     
                     === PART 2: EMAIL ===
                     Write short email (<100 words):
-                    1. Extract sender name
-                    2. Start "Dear [Name],"
-                    3. Thank them
-                    4. Say "Please find our Property Profile above"
-                    5. Sign as: {contact_info}
+                    1. Extract sender name from the incoming request. If the request is blank or no name is found, use "Valued Partner".
+                    2. Start "Dear [Sender Name or Valued Partner],"
+                    3. Thank them for their interest in {business_name}.
+                    4. Say "Please find our detailed Property Profile above."
+                    5. Sign off professionally using exactly this contact info: {contact_info}
                     
                     OUTPUT: Profile first, then "---EMAIL---" marker, then email.
                     """, expected_output="Profile + ---EMAIL--- + Email", agent=writer)
@@ -284,7 +337,35 @@ def parse_json_output(raw_output):
         return {"subject": "Error", "body": raw_output}
 
 # ==========================================
-# MAIN APP LOGIC
+# 4. USER MANUAL DIALOG
+# ==========================================
+@st.dialog("📖 A.R.I.A. User Manual")
+def show_user_manual():
+    st.markdown("""
+    **Welcome to A.R.I.A.!** Here is how to get the most out of your AI workforce:
+    
+    ### 🚀 Getting Started
+    1. **Business Owners:** Fill out **⚙️ My Business Settings** first - A.R.I.A. uses this to personalize all outputs.
+    2. **Educational Users:** You can skip settings and test all modules freely with dummy data!
+    
+    ###  How to Use Each Module
+    - ** Local Lead Gen:** Find real businesses in your target area. The AI researches and drafts personalized emails.
+    - **📩 Lead Response:** When clients reply to you, paste their inquiry here. A.R.I.A. generates a property profile and professional reply.
+    - **⭐ Review Responses:** Paste any review (positive or negative). A.R.I.A. drafts an empathetic, brand-safe response.
+    - **🔄 Content Repurposing:** Feed it one piece of content. Get a full week of marketing materials.
+    - **🤝 Vendor Negotiation:** Lower your business costs. AI researches competitors and drafts negotiation emails.
+    - **📱 WhatsApp Broadcasts:** Create engaging broadcasts with emojis and CTAs for your customer list.
+    
+    ### 🔐 Approvals
+    If you connect Telegram, A.R.I.A. will send drafts to your phone. Reply to approve before anything sends.
+    
+    **Your 14-day trial includes full access to all 6 modules!**
+    """)
+    if st.button("Close Manual", use_container_width=True):
+        st.rerun()
+
+# ==========================================
+# 5. MAIN APP LOGIC
 # ==========================================
 if 'user' not in st.session_state:
     login_page()
@@ -298,11 +379,12 @@ user_settings = get_user_settings(st.session_state['user'].id)
 if user_settings is None:
     user_settings = {}
 
-# Get user role for admin badge (with session state caching fix)
+# Get user role for admin badge
 if 'user_role' not in st.session_state:
     st.session_state['user_role'] = get_user_role(st.session_state['user'].id)
 user_role = st.session_state['user_role']
 
+# --- SIDEBAR ---
 with st.sidebar:
     st.header(f"👤 {st.session_state['user'].email}")
     
@@ -315,76 +397,107 @@ with st.sidebar:
     
     st.divider()
     
-    if st.button("🚪 Logout", use_container_width=True):
+    # Dynamic Tabs based on User Type
+    tab_names = []
+    if st.session_state['user_type'] == "Business Owner":
+        tab_names.append("⚙️ My Business Settings")
+    
+    tab_names.extend([
+        "🤝 Vendor Negotiation",
+        "🔄 Content Repurposing",
+        "🎯 Local Lead Gen",
+        "📩 Lead Response",
+        "⭐ Review Responses",
+        "📱 WhatsApp Broadcasts"
+    ])
+    
+    tabs = st.tabs(tab_names)
+    
+    st.divider()
+    
+    # --- BOTTOM PREFERENCES (Above Logout) ---
+    st.markdown("##### ⚙️ Preferences")
+    
+    # 1. User Type Selector
+    new_user_type = st.selectbox(
+        "Account Type",
+        options=["Business Owner", "Educational User / Other"],
+        index=0 if st.session_state['user_type'] == "Business Owner" else 1,
+        help="Educational users can test modules freely without configuring business settings."
+    )
+    if new_user_type != st.session_state['user_type']:
+        st.session_state['user_type'] = new_user_type
+        st.rerun()
+        
+    # 2. Theme Selector
+    new_theme = st.selectbox(
+        "Theme",
+        options=["Dark Mode", "Light Mode"],
+        index=0 if st.session_state['theme'] == "Dark Mode" else 1
+    )
+    if new_theme != st.session_state['theme']:
+        st.session_state['theme'] = new_theme
+        st.rerun()
+        
+    # 3. User Manual Button
+    if st.button(" Open User Manual", use_container_width=True, type="secondary"):
+        show_user_manual()
+        
+    st.divider()
+    
+    # 4. Logout
+    if st.button("🚪 Logout", use_container_width=True, type="secondary"):
         supabase.auth.sign_out()
         st.session_state.clear()
         st.rerun()
 
+# --- MAIN CONTENT AREA ---
 st.title("🤖 A.R.I.A. Command Center")
 
-tabs = st.tabs([
-    "️ My Business Settings",
-    "📖 User Manual",
-    "🤝 Vendor Negotiation",
-    "🔄 Content Repurposing",
-    "🎯 Local Lead Gen",
-    "📩 Lead Response",
-    "⭐ Review Responses",
-    "📱 WhatsApp Broadcasts"
-])
+# Shift tab indices if Business Settings is present
+offset = 1 if st.session_state['user_type'] == "Business Owner" else 0
 
-# TAB 1: BUSINESS SETTINGS
-with tabs[0]:
-    st.header("️ Configure Your Business Profile")
-    st.markdown("A.R.I.A. uses these details to personalize all outputs.")
-    
-    with st.form("settings_form"):
-        col1, col2 = st.columns(2)
-        with col1:
-            biz_name = st.text_input("Business Name *", value=user_settings.get('business_name', ''))
-            industry = st.selectbox("Industry", ["Hospitality", "Food/FMCG", "Service", "Retail", "Other"], index=0)
-            location = st.text_input("Primary Location *", value=user_settings.get('location', ''))
-        with col2:
-            contact_info = st.text_input("Contact Info (Name | Phone | Email) *", value=user_settings.get('contact_info', ''))
-            biz_pitch = st.text_area("Core Pitch *", height=100, value=user_settings.get('business_pitch', ''))
-            
-        st.subheader("🔐 Integration Credentials")
-        col3, col4 = st.columns(2)
-        with col3:
-            gmail_pw = st.text_input("Gmail App Password", type="password", value=user_settings.get('gmail_app_password', ''))
-            tg_token = st.text_input("Telegram Bot Token", type="password", value=user_settings.get('telegram_bot_token', ''))
-        with col4:
-            tg_chat = st.text_input("Telegram Chat ID", value=user_settings.get('telegram_chat_id', ''))
+# TAB 0: BUSINESS SETTINGS (Only for Business Owners)
+if st.session_state['user_type'] == "Business Owner" and len(tabs) > 0:
+    with tabs[0]:
+        st.header("⚙️ Configure Your Business Profile")
+        st.markdown("A.R.I.A. uses these details to personalize all outputs.")
+        
+        with st.form("settings_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                biz_name = st.text_input("Business Name *", value=user_settings.get('business_name', ''))
+                industry = st.selectbox("Industry", ["Hospitality", "Food/FMCG", "Service", "Retail", "Other"], index=0)
+                location = st.text_input("Primary Location *", value=user_settings.get('location', ''))
+            with col2:
+                contact_info = st.text_input("Contact Info (Name | Phone | Email) *", value=user_settings.get('contact_info', ''))
+                biz_pitch = st.text_area("Core Pitch *", height=100, value=user_settings.get('business_pitch', ''))
+                
+            st.subheader("🔐 Integration Credentials")
+            col3, col4 = st.columns(2)
+            with col3:
+                gmail_pw = st.text_input("Gmail App Password", type="password", value=user_settings.get('gmail_app_password', ''))
+                tg_token = st.text_input("Telegram Bot Token", type="password", value=user_settings.get('telegram_bot_token', ''))
+            with col4:
+                tg_chat = st.text_input("Telegram Chat ID", value=user_settings.get('telegram_chat_id', ''))
 
-        if st.form_submit_button("💾 Save Settings", type="primary", use_container_width=True):
-            save_user_settings(st.session_state['user'].id, {
-                "business_name": biz_name, "industry": industry, "location": location,
-                "contact_info": contact_info, "business_pitch": biz_pitch,
-                "gmail_app_password": gmail_pw, "telegram_bot_token": tg_token,
-                "telegram_chat_id": tg_chat
-            })
-            st.success("✅ Settings saved!")
-            st.rerun()
+            if st.form_submit_button("💾 Save Settings", type="primary", use_container_width=True):
+                save_user_settings(st.session_state['user'].id, {
+                    "business_name": biz_name, "industry": industry, "location": location,
+                    "contact_info": contact_info, "business_pitch": biz_pitch,
+                    "gmail_app_password": gmail_pw, "telegram_bot_token": tg_token,
+                    "telegram_chat_id": tg_chat
+                })
+                st.success("✅ Settings saved!")
+                st.rerun()
 
-# TAB 2: USER MANUAL
-with tabs[1]:
-    st.header("📖 How to Use A.R.I.A.")
-    st.markdown("""
-    **Getting Started:**
-    1. Fill out **My Business Settings** first
-    2. Use **Local Lead Gen** to find B2B clients
-    3. Use **Lead Response** when clients reply to you
-    4. Use **WhatsApp Broadcasts** for customer engagement
-    5. Use **Review Responses** for reputation management
-    
-    **Your 14-day trial includes all features!**
-    """)
-
-# TAB 3: VENDOR NEGOTIATION
-with tabs[2]:
-    st.header(" Vendor Negotiation")
-    if not user_settings.get('contact_info'):
-        st.warning("️ Complete Business Settings first!")
+# TAB: VENDOR NEGOTIATION
+with tabs[0 + offset]:
+    st.header("🤝 Vendor Negotiation")
+    if st.session_state['user_type'] == "Educational User / Other":
+        st.info("🎓 **Educational Mode:** You can test this module freely! (Note: Emails won't actually send without business credentials).")
+    elif not user_settings.get('contact_info'):
+        st.warning("⚠️ Complete Business Settings first!")
     else:
         with st.form("negotiation_form"):
             v_name = st.text_input("Vendor Name")
@@ -405,9 +518,12 @@ with tabs[2]:
                     add_quick_copy(parsed.get('body', ''))
                     st.code(parsed.get('body', ''), language="text")
 
-# TAB 4: CONTENT REPURPOSING
-with tabs[3]:
+# TAB: CONTENT REPURPOSING
+with tabs[1 + offset]:
     st.header("🔄 Content Repurposing")
+    if st.session_state['user_type'] == "Educational User / Other":
+        st.info(" **Educational Mode:** Test freely with any content!")
+    
     with st.form("repurpose_form"):
         source = st.text_area("Source Material", height=150)
         audience = st.text_input("Target Audience")
@@ -418,15 +534,17 @@ with tabs[3]:
                 result = crew.kickoff(inputs={"source_content": source, "target_audience": audience})
                 parsed = parse_json_output(result.raw)
                 st.success("✅ Generated!")
-                st.subheader(" Blog Post")
+                st.subheader("📝 Blog Post")
                 add_quick_copy(parsed.get('blog', ''))
                 st.markdown(parsed.get('blog', ''))
 
-# TAB 5: LOCAL LEAD GEN
-with tabs[4]:
-    st.header("🎯 Local Lead Discovery")
-    if not user_settings.get('business_pitch'):
-        st.warning("⚠️ Complete Business Settings first!")
+# TAB: LOCAL LEAD GEN
+with tabs[2 + offset]:
+    st.header(" Local Lead Discovery")
+    if st.session_state['user_type'] == "Educational User / Other":
+        st.info("🎓 **Educational Mode:** Find leads freely!")
+    elif not user_settings.get('business_pitch'):
+        st.warning("️ Complete Business Settings first!")
     else:
         with st.form("lead_form"):
             category = st.text_input("Target Category", value="tour operators")
@@ -442,9 +560,12 @@ with tabs[4]:
                     st.success("✅ Leads Found!")
                     st.code(result.raw, language="json")
 
-# TAB 6: LEAD RESPONSE
-with tabs[5]:
+# TAB: LEAD RESPONSE
+with tabs[3 + offset]:
     st.header("📩 Lead Response & Assets")
+    if st.session_state['user_type'] == "Educational User / Other":
+        st.info("🎓 **Educational Mode:** Test with any lead inquiry!")
+    
     with st.form("response_form"):
         incoming = st.text_area("Incoming Lead Request", height=100)
         raw_details = st.text_area("Your Business Details", height=150)
@@ -464,13 +585,16 @@ with tabs[5]:
                 st.markdown(parts[0])
                 if len(parts) > 1:
                     st.divider()
-                    st.subheader("📧 Email Reply")
+                    st.subheader(" Email Reply")
                     add_quick_copy(parts[1])
                     st.markdown(parts[1])
 
-# TAB 7: REVIEW RESPONSES
-with tabs[6]:
+# TAB: REVIEW RESPONSES
+with tabs[4 + offset]:
     st.header("⭐ Review Response Generator")
+    if st.session_state['user_type'] == "Educational User / Other":
+        st.info(" **Educational Mode:** Test with any review!")
+    
     with st.form("review_form"):
         reviewer = st.text_input("Reviewer Name")
         review_text = st.text_area("Review Text", height=100)
@@ -487,10 +611,12 @@ with tabs[6]:
                 add_quick_copy(result.raw)
                 st.markdown(result.raw)
 
-# TAB 8: WHATSAPP BROADCASTS
-with tabs[7]:
+# TAB: WHATSAPP BROADCASTS
+with tabs[5 + offset]:
     st.header("📱 WhatsApp Broadcast Generator")
-    if not user_settings.get('business_name'):
+    if st.session_state['user_type'] == "Educational User / Other":
+        st.info("🎓 **Educational Mode:** Create broadcasts freely!")
+    elif not user_settings.get('business_name'):
         st.warning("⚠️ Complete Business Settings first!")
     else:
         with st.form("wa_form"):
