@@ -24,7 +24,7 @@ def add_quick_copy(text):
     st.markdown(
         f"""
         <button id="{btn_id}" style="background-color: #f0f2f6; border: 1px solid #ccc; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 13px; margin-bottom: 10px;">
-             Copy to Clipboard
+            📋 Copy to Clipboard
         </button>
         <script>
             document.getElementById("{btn_id}").onclick = function() {{
@@ -78,8 +78,6 @@ def login_page():
 
 def check_trial(user):
     """Checks if user has access"""
-    from db import supabase_admin
-    
     try:
         res = supabase_admin.table("profiles").select(
             "trial_ends_at, role"
@@ -105,6 +103,16 @@ def check_trial(user):
     except Exception as e:
         print(f"Trial check error: {e}")
         return True  # Allow on error
+
+def get_user_role(user_id):
+    """Get the user's role from profiles table"""
+    try:
+        res = supabase_admin.table("profiles").select("role").eq("id", user_id).execute()
+        if res.data:
+            return res.data[0].get('role', 'user')
+        return 'user'
+    except:
+        return 'user'
 
 # ==========================================
 # 3. CREW DEFINITIONS (Using SaaS Owner's API Keys)
@@ -208,10 +216,10 @@ def create_response_crew():
                     ## 📸 Photos
                     [List]
                     
-                    ## 🌟 Offers
+                    ##  Offers
                     [List]
                     
-                    ## 🗺️ Nearby
+                    ## ️ Nearby
                     [List]
                     
                     === PART 2: EMAIL ===
@@ -290,26 +298,37 @@ user_settings = get_user_settings(st.session_state['user'].id)
 if user_settings is None:
     user_settings = {}
 
+# Get user role for admin badge
+user_role = get_user_role(st.session_state['user'].id)
+
 with st.sidebar:
     st.header(f"👤 {st.session_state['user'].email}")
-    st.caption("14-Day Free Trial Active")
+    
+    # Show admin badge if applicable
+    if user_role == 'admin':
+        st.markdown(" **ADMIN**")
+        st.caption("Unlimited Access")
+    else:
+        st.caption("14-Day Free Trial Active")
+    
     st.divider()
-    if st.button("Logout"):
+    
+    if st.button("🚪 Logout", use_container_width=True):
         supabase.auth.sign_out()
         st.session_state.clear()
         st.rerun()
 
-st.title(" A.R.I.A. Command Center")
+st.title("🤖 A.R.I.A. Command Center")
 
 tabs = st.tabs([
     "⚙️ My Business Settings",
-    " User Manual",
+    "📖 User Manual",
     "🤝 Vendor Negotiation",
-    "🔄 Content Repurposing",
+    " Content Repurposing",
     "🎯 Local Lead Gen",
     "📩 Lead Response",
     "⭐ Review Responses",
-    "📱 WhatsApp Broadcasts"
+    " WhatsApp Broadcasts"
 ])
 
 # TAB 1: BUSINESS SETTINGS
@@ -397,7 +416,7 @@ with tabs[3]:
                 result = crew.kickoff(inputs={"source_content": source, "target_audience": audience})
                 parsed = parse_json_output(result.raw)
                 st.success("✅ Generated!")
-                st.subheader(" Blog Post")
+                st.subheader("📝 Blog Post")
                 add_quick_copy(parsed.get('blog', ''))
                 st.markdown(parsed.get('blog', ''))
 
@@ -438,7 +457,7 @@ with tabs[5]:
                 })
                 st.success("✅ Generated!")
                 parts = result.raw.split("---EMAIL---")
-                st.subheader("📋 Property Profile")
+                st.subheader(" Property Profile")
                 add_quick_copy(parts[0])
                 st.markdown(parts[0])
                 if len(parts) > 1:
