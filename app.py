@@ -47,6 +47,14 @@ st.markdown(f"""
     }}
     section[data-testid="stSidebar"] .stMarkdown, section[data-testid="stSidebar"] label {{ color: {text_color} !important; }}
     
+    /* FIX: Login/Signup Page Label Visibility */
+    .stTextInput label, .stTextArea label, .stSelectbox label, .stRadio label, .stCheckbox label {{
+        color: {text_color} !important;
+        font-weight: 500 !important;
+    }}
+    .stTabs [data-baseweb="tab"] {{ color: {text_mid} !important; }}
+    .stTabs [aria-selected="true"] {{ color: {text_color} !important; }}
+    
     /* Inputs */
     .stTextInput > div > div > input, .stTextArea > div > div > textarea, .stSelectbox > div > div > div {{
         background-color: {panel_input} !important; color: {text_color} !important; 
@@ -215,8 +223,8 @@ def create_response_crew():
         
         Generate TWO things:
         === PART 1: PROPERTY PROFILE ===
-        #  PROPERTY PROFILE: {business_name}
-        ## 📍 Location, 🛏️ Rooms, 💰 Rates, 🍽️ Meals, ✨ Amenities, 📸 Photos,  Offers, 🗺️ Nearby (Extract from details)
+        # 🏨 PROPERTY PROFILE: {business_name}
+        ## 📍 Location, 🛏️ Rooms, 💰 Rates, 🍽️ Meals, ✨ Amenities, 📸 Photos, 🌟 Offers, 🗺️ Nearby (Extract from details)
         
         === PART 2: EMAIL ===
         Write short email (<100 words):
@@ -275,7 +283,7 @@ def show_user_manual():
     st.markdown("""
     **Welcome to A.R.I.A.!** Here is how to get the most out of your AI workforce:
     
-    ###  Getting Started
+    ### 🚀 Getting Started
     1. **Business Owners:** Fill out **⚙️ Business Settings** first - A.R.I.A. uses this to personalize all outputs.
     2. **Educational Users:** You can skip settings and test all modules freely with dummy data!
     
@@ -317,7 +325,7 @@ with st.sidebar:
     if user_role == 'admin':
         st.markdown("🔴 **ADMIN** · Unlimited Access")
     else:
-        st.markdown(" **14-Day Free Trial Active**")
+        st.markdown("**14-Day Free Trial Active**")
     
     st.divider()
     
@@ -326,38 +334,45 @@ with st.sidebar:
     
     # Business Settings (Only for Business Owners)
     if st.session_state['user_type'] == "Business Owner":
-        btn_settings = st.button("⚙️ Business Settings", use_container_width=True, 
-                                 type="primary" if st.session_state['active_module'] == 'settings' else "secondary")
-        if btn_settings: st.session_state['active_module'] = 'settings'
+        if st.button("⚙️ Business Settings", use_container_width=True, 
+                     type="primary" if st.session_state['active_module'] == 'settings' else "secondary"):
+            st.session_state['active_module'] = 'settings'
+            st.rerun() # CRITICAL FIX: Forces immediate UI update
+            
+    if st.button("🤝 Vendor Negotiation", use_container_width=True, 
+                 type="primary" if st.session_state['active_module'] == 'vendor' else "secondary"):
+        st.session_state['active_module'] = 'vendor'
+        st.rerun()
         
-    btn_vendor = st.button("🤝 Vendor Negotiation", use_container_width=True, 
-                           type="primary" if st.session_state['active_module'] == 'vendor' else "secondary")
-    if btn_vendor: st.session_state['active_module'] = 'vendor'
+    if st.button("🔄 Content Repurposing", use_container_width=True, 
+                 type="primary" if st.session_state['active_module'] == 'content' else "secondary"):
+        st.session_state['active_module'] = 'content'
+        st.rerun()
         
-    btn_content = st.button(" Content Repurposing", use_container_width=True, 
-                            type="primary" if st.session_state['active_module'] == 'content' else "secondary")
-    if btn_content: st.session_state['active_module'] = 'content'
+    if st.button("🎯 Local Lead Gen", use_container_width=True, 
+                 type="primary" if st.session_state['active_module'] == 'leadgen' else "secondary"):
+        st.session_state['active_module'] = 'leadgen'
+        st.rerun()
         
-    btn_leadgen = st.button("🎯 Local Lead Gen", use_container_width=True, 
-                            type="primary" if st.session_state['active_module'] == 'leadgen' else "secondary")
-    if btn_leadgen: st.session_state['active_module'] = 'leadgen'
+    if st.button("📩 Lead Response", use_container_width=True, 
+                 type="primary" if st.session_state['active_module'] == 'response' else "secondary"):
+        st.session_state['active_module'] = 'response'
+        st.rerun()
         
-    btn_response = st.button("📩 Lead Response", use_container_width=True, 
-                             type="primary" if st.session_state['active_module'] == 'response' else "secondary")
-    if btn_response: st.session_state['active_module'] = 'response'
+    if st.button("⭐ Review Responses", use_container_width=True, 
+                 type="primary" if st.session_state['active_module'] == 'review' else "secondary"):
+        st.session_state['active_module'] = 'review'
+        st.rerun()
         
-    btn_review = st.button("⭐ Review Responses", use_container_width=True, 
-                           type="primary" if st.session_state['active_module'] == 'review' else "secondary")
-    if btn_review: st.session_state['active_module'] = 'review'
-        
-    btn_whatsapp = st.button("📱 WhatsApp Broadcasts", use_container_width=True, 
-                             type="primary" if st.session_state['active_module'] == 'whatsapp' else "secondary")
-    if btn_whatsapp: st.session_state['active_module'] = 'whatsapp'
+    if st.button("📱 WhatsApp Broadcasts", use_container_width=True, 
+                 type="primary" if st.session_state['active_module'] == 'whatsapp' else "secondary"):
+        st.session_state['active_module'] = 'whatsapp'
+        st.rerun()
 
     st.divider()
     
     # Preferences Section
-    st.markdown('<div class="sidebar-header">️ Preferences</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-header">⚙️ Preferences</div>', unsafe_allow_html=True)
     
     new_user_type = st.selectbox(
         "Account Type",
@@ -395,7 +410,7 @@ active = st.session_state['active_module']
 
 # 1. BUSINESS SETTINGS
 if active == 'settings' and st.session_state['user_type'] == "Business Owner":
-    st.header("️ Configure Your Business Profile")
+    st.header("⚙️ Configure Your Business Profile")
     st.markdown("A.R.I.A. uses these details to personalize all outputs.")
     with st.form("settings_form"):
         col1, col2 = st.columns(2)
@@ -485,7 +500,7 @@ elif active == 'leadgen':
             location_search = st.text_input("Location", value=user_settings.get('location', ''))
             num_leads = st.slider("Number of Leads", 3, 10, 5)
             
-            if st.form_submit_button(" Find Leads", type="primary"):
+            if st.form_submit_button("🔍 Find Leads", type="primary"):
                 with st.spinner("Searching..."):
                     crew = create_prospect_finder_crew()
                     result = crew.kickoff(inputs={
@@ -551,7 +566,7 @@ elif active == 'whatsapp':
     if st.session_state['user_type'] == "Educational User / Other":
         st.info("🎓 **Educational Mode:** Create broadcasts freely!")
     elif not user_settings.get('business_name'):
-        st.warning("️ Complete Business Settings first!")
+        st.warning("⚠️ Complete Business Settings first!")
     else:
         with st.form("wa_form"):
             btype = st.selectbox("Type", ["Special Offer", "Festival Greeting", "Welcome Back"])
