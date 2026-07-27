@@ -433,44 +433,57 @@ st.markdown("""
 # 3. AUTHENTICATION
 # ==========================================
 def login_page():
+    # Center the login card
     st.markdown("""
-    <div style="display:flex; justify-content:center; align-items:center; min-height:100vh; background:#F8FAFC;">
-        <div style="background:white; padding:48px; border-radius:16px; box-shadow:0 4px 20px rgba(0,0,0,0.08); max-width:420px; width:100%;">
-            <div style="display:flex; align-items:center; gap:12px; margin-bottom:32px;">
-                <div style="width:48px; height:48px; background:linear-gradient(135deg, #16A34A 0%, #15803D 100%); border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:24px;">🔥</div>
-                <div>
-                    <div style="font-size:22px; font-weight:700; color:#0F172A;">A.R.I.A.</div>
-                    <div style="font-size:11px; color:#16A34A; font-weight:600; letter-spacing:1.5px;">COMMAND CENTER</div>
-                </div>
-            </div>
+    <style>
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #F8FAFC;
+        }
+        .login-card {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            max-width: 420px;
+            width: 100%;
+        }
+    </style>
     """, unsafe_allow_html=True)
     
-    tab_login, tab_signup = st.tabs(["Login", "Sign Up"])
+    st.markdown('<div class="login-container"><div class="login-card">', unsafe_allow_html=True)
     
-    with tab_login:
-        email = st.text_input("Email", key="login_email")
-        password = st.text_input("Password", type="password", key="login_password")
-        if st.button("Login", type="primary", use_container_width=True):
-            try:
-                res = supabase.auth.sign_in_with_password({"email": email, "password": password})
-                st.session_state['user'] = res.user
-                st.session_state['session'] = res.session
-                st.rerun()
-            except Exception as e:
-                st.error(f"Login failed: {str(e)}")
+    # Brand header
+    st.markdown("""
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:32px;">
+        <div style="width:48px; height:48px; background:linear-gradient(135deg, #16A34A 0%, #15803D 100%); border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:24px;"></div>
+        <div>
+            <div style="font-size:22px; font-weight:700; color:#0F172A;">A.R.I.A.</div>
+            <div style="font-size:11px; color:#16A34A; font-weight:600; letter-spacing:1.5px;">COMMAND CENTER</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    with tab_signup:
-        name = st.text_input("Full Name", key="signup_name")
-        email = st.text_input("Email", key="signup_email")
-        password = st.text_input("Password (min 6 chars)", type="password", key="signup_password")
-        if st.button("Create Account", type="primary", use_container_width=True):
-            try:
-                res = supabase.auth.sign_up({"email": email, "password": password, "options": {"data": {"full_name": name}}})
-                st.success("Account created! Check your email.")
-            except Exception as e:
-                st.error(f"Signup failed: {str(e)}")
+    # Login form (no tabs for simplicity)
+    email = st.text_input("Email", key="login_email")
+    password = st.text_input("Password", type="password", key="login_password")
     
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    if st.button("Login", type="primary", use_container_width=True):
+        try:
+            res = supabase.auth.sign_in_with_password({"email": email, "password": password})
+            st.session_state['user'] = res.user
+            st.session_state['session'] = res.session
+            st.rerun()
+        except Exception as e:
+            st.error(f"Login failed: {str(e)}")
+    
+    st.markdown("---")
+    st.markdown('<p style="text-align:center; color:#64748B; font-size:13px;">Don\'t have an account? <a href="#" style="color:#16A34A; text-decoration:none;">Sign up</a></p>', unsafe_allow_html=True)
+    
+    st.markdown('</div></div>', unsafe_allow_html=True)
 
 def check_trial(user):
     try:
