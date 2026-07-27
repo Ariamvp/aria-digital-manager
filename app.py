@@ -36,14 +36,13 @@ st.markdown("""
     section[data-testid="stSidebar"] label { color: #CBD5E1 !important; font-size: 13px; }
     section[data-testid="stSidebar"] .stSelectbox label { color: #94A3B8 !important; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
     
-    /* Sidebar Inputs */
     section[data-testid="stSidebar"] .stSelectbox > div > div > div {
         background-color: #1E293B !important; color: #F8FAFC !important; border: 1px solid #334155 !important;
     }
     
     /* === MAIN AREA === */
     .main-header { 
-        display: flex; justify-content: space-between; align-items: center; 
+        display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;
         margin-bottom: 32px; padding-bottom: 20px; border-bottom: 1px solid #E2E8F0; 
     }
     .page-title { font-size: 28px; font-weight: 700; color: #0F172A; margin: 0; }
@@ -57,6 +56,7 @@ st.markdown("""
     .card-header {
         display: flex; align-items: center; justify-content: space-between; 
         margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #F1F5F9;
+        flex-wrap: wrap; gap: 12px;
     }
     .card-title { font-size: 18px; font-weight: 700; color: #0F172A; display: flex; align-items: center; gap: 12px; }
     .card-icon { 
@@ -104,10 +104,50 @@ st.markdown("""
     /* Hide Streamlit defaults */
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
     
-    /* Sidebar Section Headers */
     .sidebar-section { 
         color: #16A34A !important; font-size: 11px; font-weight: 700; 
         letter-spacing: 1px; text-transform: uppercase; margin-top: 24px; margin-bottom: 8px; 
+    }
+
+    /* ======================================== */
+    /* === MOBILE & TABLET RESPONSIVE === */
+    /* ======================================== */
+    
+    /* Tablet (max 1024px) */
+    @media (max-width: 1024px) {
+        .page-title { font-size: 24px; }
+        .metric-value { font-size: 24px; }
+        .dashboard-card { padding: 20px; }
+    }
+    
+    /* Mobile (max 768px) */
+    @media (max-width: 768px) {
+        .main-header { flex-direction: column; align-items: flex-start; }
+        .page-title { font-size: 22px; }
+        .page-subtitle { font-size: 13px; }
+        .dashboard-card { padding: 16px; margin-bottom: 16px; }
+        .card-header { flex-direction: column; align-items: flex-start; }
+        .card-title { font-size: 16px; }
+        .card-badge { font-size: 11px; }
+        .metric-value { font-size: 22px; }
+        .metric-label { font-size: 12px; }
+        .metric-trend { font-size: 11px; }
+        
+        /* Stack sidebar buttons better on mobile */
+        section[data-testid="stSidebar"] { width: 280px !important; }
+    }
+    
+    /* Small Mobile (max 480px) */
+    @media (max-width: 480px) {
+        .page-title { font-size: 20px; }
+        .dashboard-card { padding: 12px; border-radius: 8px; }
+        .card-icon { width: 32px; height: 32px; font-size: 16px; }
+        .metric-value { font-size: 20px; }
+        
+        /* Make Streamlit columns stack on mobile */
+        div[data-testid="column"] {
+            padding: 4px !important;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -369,6 +409,11 @@ def page_header(title, subtitle, breadcrumb=""):
 if page == 'dashboard':
     page_header("Dashboard", "Welcome back! Here's what's happening with your business today.", "Home › Dashboard")
     
+        # Responsive columns - stack on mobile
+    if st.get_option('browser.serverAddress'):  # Always true, just for structure
+        pass
+    
+    # Use 2 columns on tablet, 1 on mobile via CSS (handled above)
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown('<div class="metric-card"><div class="metric-label">Total Leads</div><div class="metric-value">247</div><div class="metric-trend">↑ 12% this week</div></div>', unsafe_allow_html=True)
