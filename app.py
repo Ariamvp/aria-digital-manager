@@ -311,15 +311,15 @@ with st.sidebar:
         st.session_state['page'] = 'team'; st.rerun()
     
     st.markdown('<div class="sidebar-section">AI Tools</div>', unsafe_allow_html=True)
-    if st.button(" Vendor Negotiation", use_container_width=True, type="primary" if st.session_state['page'] == 'vendor' else "secondary"):
+    if st.button(" Negotiator", use_container_width=True, type="primary" if st.session_state['page'] == 'vendor' else "secondary"):
         st.session_state['page'] = 'vendor'; st.rerun()
-    if st.button("🔄 Content Repurposing", use_container_width=True, type="primary" if st.session_state['page'] == 'content' else "secondary"):
+    if st.button("🎨 Content Studio", use_container_width=True, type="primary" if st.session_state['page'] == 'content' else "secondary"):
         st.session_state['page'] = 'content'; st.rerun()
-    if st.button(" Lead Response", use_container_width=True, type="primary" if st.session_state['page'] == 'response' else "secondary"):
+    if st.button("✉️ Response Writer", use_container_width=True, type="primary" if st.session_state['page'] == 'response' else "secondary"):
         st.session_state['page'] = 'response'; st.rerun()
-    if st.button("🎯 Local Lead Generator", use_container_width=True, type="primary" if st.session_state['page'] == 'leadgen' else "secondary"):
+    if st.button("🎯 Lead Finder", use_container_width=True, type="primary" if st.session_state['page'] == 'leadgen' else "secondary"):
         st.session_state['page'] = 'leadgen'; st.rerun()
-    if st.button(" WhatsApp Broadcast", use_container_width=True, type="primary" if st.session_state['page'] == 'whatsapp' else "secondary"):
+    if st.button("📱 WhatsApp Studio", use_container_width=True, type="primary" if st.session_state['page'] == 'whatsapp' else "secondary"):
         st.session_state['page'] = 'whatsapp'; st.rerun()
     if st.button("⭐ Review Responses", use_container_width=True, type="primary" if st.session_state['page'] == 'review' else "secondary"):
         st.session_state['page'] = 'review'; st.rerun()
@@ -417,7 +417,7 @@ elif page == 'business':
 
 # --- AI TOOLS ---
 elif page == 'vendor':
-    page_header("Vendor Negotiation", "Lower your business costs with data-driven negotiation emails.", "Home › AI Tools › Vendor Negotiation")
+    page_header("Negotiator", "Lower your business costs with data-driven negotiation emails.", "Home › AI Tools › Negotiator")
     st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
     if not user_settings.get('contact_info'):
         st.warning("⚠️ Complete Business Profile first!")
@@ -440,7 +440,7 @@ elif page == 'vendor':
     st.markdown('</div>', unsafe_allow_html=True)
 
 elif page == 'content':
-    page_header("Content Repurposing", "Turn one piece of content into a full week of marketing materials.", "Home › AI Tools › Content Repurposing")
+    page_header("Content Studio", "Turn one piece of content into a full week of marketing materials.", "Home › AI Tools › Content Studio")
     st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
     with st.form("content_form"):
         source = st.text_area("Source Material", height=150)
@@ -455,7 +455,7 @@ elif page == 'content':
     st.markdown('</div>', unsafe_allow_html=True)
 
 elif page == 'leadgen':
-    page_header("Local Lead Generator", "Find real businesses with verified emails in your target market.", "Home › AI Tools › Local Lead Generator")
+    page_header("Lead Finder", "Find real businesses with verified emails in your target market.", "Home › AI Tools › Lead Finder")
     st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
     if not user_settings.get('business_pitch'):
         st.warning("⚠️ Complete Business Profile first!")
@@ -474,7 +474,7 @@ elif page == 'leadgen':
     st.markdown('</div>', unsafe_allow_html=True)
 
 elif page == 'response':
-    page_header("Lead Response", "Generate professional property profiles and reply emails.", "Home › AI Tools › Lead Response")
+    page_header("Response Writer", "Generate professional property profiles and reply emails.", "Home › AI Tools › Response Writer")
     st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
     with st.form("response_form"):
         incoming = st.text_area("Incoming Lead Request", height=100)
@@ -492,10 +492,10 @@ elif page == 'response':
     st.markdown('</div>', unsafe_allow_html=True)
 
 elif page == 'whatsapp':
-    page_header("WhatsApp Broadcast", "Create engaging WhatsApp broadcasts for your customer list.", "Home › AI Tools › WhatsApp Broadcast")
+    page_header("WhatsApp Studio", "Create engaging WhatsApp broadcasts for your customer list.", "Home › AI Tools › WhatsApp Studio")
     st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
     if not user_settings.get('business_name'):
-        st.warning("️ Complete Business Profile first!")
+        st.warning("⚠️ Complete Business Profile first!")
     else:
         with st.form("whatsapp_form"):
             col1, col2 = st.columns(2)
