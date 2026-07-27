@@ -13,7 +13,7 @@ from db import supabase, supabase_admin, get_user_settings, save_user_settings
 # 1. INITIALIZATION
 # ==========================================
 load_dotenv()
-st.set_page_config(page_title="A.R.I.A. Dashboard", page_icon="🔥", layout="wide")
+st.set_page_config(page_title="A.R.I.A. Dashboard", page_icon="", layout="wide")
 
 # ==========================================
 # 2. CUSTOM CSS
@@ -75,6 +75,23 @@ st.markdown("""
     .metric-label { font-size: 13px; color: #64748B; margin-bottom: 8px; }
     .metric-value { font-size: 32px; font-weight: 700; color: #0F172A; }
     .metric-trend { font-size: 12px; color: #16A34A; margin-top: 4px; }
+    
+    /* Chat styling */
+    .chat-message {
+        padding: 16px;
+        border-radius: 12px;
+        margin-bottom: 16px;
+    }
+    .user-message {
+        background: #16A34A;
+        color: white;
+        margin-left: 20%;
+    }
+    .ai-message {
+        background: #F1F5F9;
+        color: #0F172A;
+        margin-right: 20%;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -187,7 +204,7 @@ def create_response_crew():
         Generate TWO things:
         === PART 1: PROPERTY PROFILE ===
         # 🏨 PROPERTY PROFILE: {business_name}
-        ## 📍 Location, ️ Rooms, 💰 Rates, 🍽️ Meals, ✨ Amenities, 📸 Photos, 🌟 Offers, 🗺️ Nearby
+        ## 📍 Location, ️ Rooms,  Rates, 🍽️ Meals,  Amenities, 📸 Photos,  Offers, 🗺️ Nearby
         === PART 2: EMAIL ===
         Write short email (<100 words):
         1. Extract sender name. If blank, use "Valued Partner".
@@ -237,7 +254,351 @@ def parse_json_output(raw_output):
         return {"subject": "Error", "body": raw_output}
 
 # ==========================================
-# 5. MAIN APP LOGIC
+# 5. AI CHAT ASSISTANT
+# ==========================================
+def get_ai_response(user_message, user_settings):
+    """Educational AI that helps users understand and use A.R.I.A."""
+    
+    msg_lower = user_message.lower()
+    business_name = user_settings.get('business_name', 'your business')
+    
+    # Educational responses based on keywords
+    if any(word in msg_lower for word in ['hello', 'hi', 'help', 'start', 'begin', 'welcome']):
+        return f"""
+👋 **Welcome to A.R.I.A.!**
+
+I'm your AI assistant, here to help you get the most out of the platform.
+
+**I can help you with:**
+- 🎯 Finding new business leads
+- ✉️ Writing professional responses to leads
+- ⭐ Managing customer reviews
+- 🎨 Creating marketing content
+-  Sending WhatsApp broadcasts
+- 💰 Negotiating with vendors
+
+**Quick Start:**
+1. First, complete your **Business Profile** (tab above)
+2. Then try any of the AI tools
+3. Or ask me anything about how to use them!
+
+**What would you like to do first?**
+"""
+
+    elif any(word in msg_lower for word in ['lead', 'find', 'customer', 'client', 'prospect']):
+        return f"""
+🎯 **Lead Finder** - Your Business Development Tool
+
+**What it does:**
+- Scans the internet for businesses in your target area
+- Verifies email addresses automatically
+- Finds contact person details
+- Extracts company information
+
+**How to use:**
+1. Click the **"Lead Finder"** tab above
+2. Enter your target category (e.g., "boutique hotels", "restaurants")
+3. Enter location (e.g., "Kochi, Kerala")
+4. Choose number of leads (3-10)
+5. Click "🔍 Find Leads"
+
+**Example:**
+If you're looking for partnership opportunities, you could search for:
+- Category: "tour operators"
+- Location: "Alappuzha, Kerala"
+- Number: 5 leads
+
+The AI will find real businesses with verified emails you can contact!
+
+**Would you like me to guide you through using Lead Finder?**
+"""
+
+    elif any(word in msg_lower for word in ['review', 'response', 'reply', 'feedback', 'rating']):
+        return f"""
+⭐ **Review Responses** - Protect Your Reputation
+
+**What it does:**
+- Reads customer reviews automatically
+- Drafts professional, empathetic responses
+- Matches your brand voice
+- Handles positive and negative reviews
+
+**How to use:**
+1. Click the **"Review Responses"** tab above
+2. Paste the review text
+3. Enter reviewer name
+4. Select sentiment (Positive/Negative/Mixed)
+5. Click "✨ Generate Response"
+
+**Example:**
+If a customer wrote: *"Great food but slow service"*
+
+The AI would generate:
+*"Dear [Name], thank you for your feedback! We're delighted you enjoyed our food. We sincerely apologize for the wait time and are working to improve our service speed. We'd love to welcome you back for a better experience. Warm regards, [Your Name]"*
+
+**Benefits:**
+- ✅ Saves time (responses in seconds)
+- ✅ Always professional
+- ✅ Brand-safe
+- ✅ Empathetic tone
+
+**Ready to try it?**
+"""
+
+    elif any(word in msg_lower for word in ['whatsapp', 'broadcast', 'message', 'campaign']):
+        return f"""
+📱 **WhatsApp Studio** - Engage Your Customers
+
+**What it does:**
+- Creates engaging WhatsApp broadcast messages
+- Uses emojis and formatting (*bold*, etc.)
+- Includes clear call-to-action
+- Adds unsubscribe option automatically
+
+**How to use:**
+1. Click the **"WhatsApp Studio"** tab above
+2. Select broadcast type:
+   - 🎁 Special Offer
+   - 🎉 Festival Greeting
+   - 👋 Welcome Back
+3. Enter offer details
+4. Choose target audience
+5. Click "✨ Generate Broadcast"
+
+**Example Output:**
+*"🌟 Weekend Special! 🌟
+
+Get 25% off on all bookings this weekend!
+
+✅ Valid: Sat-Sun only
+✅ Includes: Free breakfast
+✅ Book by: Friday 6pm
+
+Reply YES to book now!
+
+{business_name}
+Contact: {user_settings.get('contact_info', 'Your contact')}
+
+Reply STOP to unsubscribe"*
+
+**Best practices:**
+- Keep messages under 150 words
+- Use 1-2 emojis per line max
+- Include clear CTA
+- Always add unsubscribe option
+
+**Want to create a broadcast?**
+"""
+
+    elif any(word in msg_lower for word in ['content', 'social media', 'post', 'marketing', 'blog']):
+        return f"""
+🎨 **Content Studio** - Repurpose Your Content
+
+**What it does:**
+- Takes one piece of content (blog, video, post)
+- Creates a full week of marketing materials
+- Generates: blogs, social posts, newsletters
+- Optimizes for different platforms
+
+**How to use:**
+1. Click the **"Content Studio"** tab above
+2. Paste your source material (article, transcript, etc.)
+3. Enter target audience
+4. Click "🔄 Repurpose Content"
+
+**What you get:**
+- 📝 SEO blog post (500 words)
+-  LinkedIn post
+- 🐦 Twitter thread
+- 📸 Instagram caption
+-  Newsletter email
+
+**Example:**
+If you paste a product launch announcement, the AI will create:
+- A detailed blog post
+- Social media posts for each platform
+- An email newsletter
+- All tailored to each platform's style
+
+**Saves you 5+ hours of content creation!**
+
+**Ready to repurpose content?**
+"""
+
+    elif any(word in msg_lower for word in ['vendor', 'negotiate', 'cost', 'price', 'discount']):
+        return f"""
+💰 **Negotiator** - Reduce Your Business Costs
+
+**What it does:**
+- Researches competitor pricing
+- Develops negotiation strategy
+- Drafts professional negotiation emails
+- Helps you save money
+
+**How to use:**
+1. Click the **"Negotiator"** tab above
+2. Enter vendor name
+3. Enter current service type
+4. Enter monthly cost
+5. Enter contract end date
+6. Click "🚀 Generate Negotiation Email"
+
+**What happens:**
+1. AI researches the vendor and competitors
+2. Finds comparable pricing
+3. Develops negotiation strategy
+4. Drafts professional email with specific ask
+
+**Example:**
+If you pay $500/month for a service, the AI might:
+- Research 3 competitors
+- Find they charge $400-450
+- Draft an email asking for 10-15% reduction
+- Include specific competitor quotes
+
+**Average savings: ₹18,000/month!**
+
+**Want to negotiate with a vendor?**
+"""
+
+    elif any(word in msg_lower for word in ['response', 'reply', 'lead', 'inquiry', 'customer']):
+        return f"""
+️ **Response Writer** - Convert Leads to Customers
+
+**What it does:**
+- Creates professional property profiles
+- Drafts personalized email responses
+- Matches your business tone
+- Includes all key information
+
+**How to use:**
+1. Click the **"Response Writer"** tab above
+2. Paste the incoming lead inquiry
+3. Enter your business details (or use saved profile)
+4. Click "✨ Generate Response"
+
+**What you get:**
+1. **Property Profile** with:
+   - 📍 Location
+   - 🛏️ Rooms & rates
+   - 🍽️ Meals & amenities
+   - 📸 Photos
+   - 🌟 Special offers
+   - ️ Nearby attractions
+
+2. **Professional Email** that:
+   - Addresses the lead by name
+   - Thanks them for interest
+   - Includes the property profile
+   - Has clear call-to-action
+
+**Example:**
+When a lead asks about a 3-night family package, the AI generates a complete response with pricing, amenities, and a warm, professional tone.
+
+**Ready to respond to a lead?**
+"""
+
+    elif any(word in msg_lower for word in ['profile', 'settings', 'business', 'configure', 'setup']):
+        return f"""
+🏢 **Business Profile** - Your Foundation
+
+**Why it's important:**
+All AI tools use your business profile to personalize outputs. Without it, responses are generic.
+
+**What to fill in:**
+1. **Business Name** - Your company name
+2. **Industry** - Hospitality, FMCG, etc.
+3. **Location** - Primary business location
+4. **Contact Info** - Name | Phone | Email
+5. **Core Pitch** - What you offer (e.g., "Travellers, family, couples")
+
+**Integration Credentials:**
+- **Gmail App Password** - To send emails
+- **Telegram Bot Token** - For approvals
+- **Telegram Chat ID** - Where to send drafts
+
+**How to set up:**
+1. Click the **"Business Profile"** tab above
+2. Fill in all fields marked with *
+3. Add integration credentials (optional but recommended)
+4. Click "💾 Save Settings"
+
+**Pro tip:** Complete this first for best AI results!
+
+**Need help with any specific field?**
+"""
+
+    elif any(word in msg_lower for word in ['trial', 'pricing', 'cost', 'upgrade', 'payment']):
+        return f"""
+💳 **Pricing & Trial Information**
+
+**Your Current Status:**
+- ✅ 14-Day Free Trial Active
+- ✅ All 6 AI modules included
+- ✅ Unlimited access during trial
+
+**After Trial:**
+- **Professional Plan:** ₹2,999/month
+  - 500 AI generations/month
+  - All 6 modules
+  - Email support
+  
+- **Enterprise Plan:** ₹4,999/month
+  - Unlimited generations
+  - Priority support
+  - Team collaboration
+
+**What's included:**
+✅ Lead Finder
+✅ Response Writer
+✅ Review Responses
+✅ Content Studio
+✅ WhatsApp Studio
+✅ Negotiator
+✅ AI Chat Assistant
+
+**No credit card required for trial!**
+
+**Questions about features?**
+"""
+
+    else:
+        # Default educational response
+        return f"""
+🤖 **I'm here to help!**
+
+I can guide you through using any of A.R.I.A.'s features.
+
+**What I can help with:**
+
+📚 **Learning the Platform:**
+- "How do I find new leads?"
+- "How do I respond to reviews?"
+- "How do I create content?"
+- "How do I send WhatsApp messages?"
+
+🎯 **Specific Tasks:**
+- "Help me find hotels in Kochi"
+- "Write a response to a negative review"
+- "Create an Onam campaign"
+- "Negotiate with my vendor"
+
+ **Best Practices:**
+- "What's the best way to use Lead Finder?"
+- "How should I write WhatsApp broadcasts?"
+- "What makes a good review response?"
+
+**Try asking me:**
+- "How do I get started?"
+- "Show me how to find leads"
+- "Help me with reviews"
+- "What can you do?"
+
+**Or just tell me what you want to accomplish, and I'll guide you!**
+"""
+
+# ==========================================
+# 6. MAIN APP LOGIC
 # ==========================================
 if 'user' not in st.session_state:
     login_page()
@@ -251,22 +612,41 @@ user_settings = get_user_settings(st.session_state['user'].id) or {}
 user_role = get_user_role(st.session_state['user'].id)
 user_email = st.session_state['user'].email
 
+# Initialize chat history
+if 'chat_messages' not in st.session_state:
+    st.session_state['chat_messages'] = [
+        {"role": "assistant", "content": f"""👋 **Welcome to A.R.I.A., {user_email.split('@')[0]}!**
+
+I'm your AI assistant. I can help you:
+- 🎯 Find new business leads
+- ✉️ Write professional responses
+- ⭐ Manage customer reviews
+-  Create marketing content
+- 📱 Send WhatsApp broadcasts
+- 💰 Negotiate with vendors
+
+**What would you like to do first?**
+
+Or ask me anything about how to use the platform!"""}
+    ]
+
 # Top bar with user info and logout
 col1, col2 = st.columns([6, 1])
 with col1:
     st.markdown(f"<h2 style='margin:0; padding:20px 0;'> A.R.I.A. Command Center</h2>", unsafe_allow_html=True)
 with col2:
-    if st.button("🚪 Logout", use_container_width=True):
+    if st.button(" Logout", use_container_width=True):
         supabase.auth.sign_out()
         st.session_state.clear()
         st.rerun()
 
 st.markdown("---")
 
-# Tab-based navigation
+# Tab-based navigation (9 tabs including AI Chat)
 tabs = st.tabs([
-    "📊 Dashboard",
+    " Dashboard",
     "🏢 Business Profile",
+    "💬 AI Chat",
     " Lead Finder",
     "️ Response Writer",
     " Content Studio",
@@ -325,8 +705,65 @@ with tabs[1]:
             st.success("✅ Settings saved successfully!")
             st.rerun()
 
-# TAB 3: LEAD FINDER
+# TAB 3: AI CHAT
 with tabs[2]:
+    st.header("💬 AI Chat Assistant")
+    st.markdown("Ask me anything about using A.R.I.A. I'm here to help!")
+    
+    # Display chat history
+    for message in st.session_state['chat_messages']:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+    
+    # Quick action buttons
+    st.markdown("### 💡 Quick Questions")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("🎯 How do I find leads?", use_container_width=True):
+            st.session_state['chat_messages'].append({"role": "user", "content": "How do I find leads?"})
+            response = get_ai_response("How do I find leads?", user_settings)
+            st.session_state['chat_messages'].append({"role": "assistant", "content": response})
+            st.rerun()
+        
+        if st.button("⭐ How do I manage reviews?", use_container_width=True):
+            st.session_state['chat_messages'].append({"role": "user", "content": "How do I manage reviews?"})
+            response = get_ai_response("How do I manage reviews?", user_settings)
+            st.session_state['chat_messages'].append({"role": "assistant", "content": response})
+            st.rerun()
+    
+    with col2:
+        if st.button("📱 How do I send WhatsApp?", use_container_width=True):
+            st.session_state['chat_messages'].append({"role": "user", "content": "How do I send WhatsApp?"})
+            response = get_ai_response("How do I send WhatsApp?", user_settings)
+            st.session_state['chat_messages'].append({"role": "assistant", "content": response})
+            st.rerun()
+        
+        if st.button("🎨 How do I create content?", use_container_width=True):
+            st.session_state['chat_messages'].append({"role": "user", "content": "How do I create content?"})
+            response = get_ai_response("How do I create content?", user_settings)
+            st.session_state['chat_messages'].append({"role": "assistant", "content": response})
+            st.rerun()
+    
+    # Chat input
+    st.markdown("---")
+    if prompt := st.chat_input("Type your question here..."):
+        st.session_state['chat_messages'].append({"role": "user", "content": prompt})
+        
+        response = get_ai_response(prompt, user_settings)
+        st.session_state['chat_messages'].append({"role": "assistant", "content": response})
+        st.rerun()
+    
+    # Clear chat
+    if len(st.session_state['chat_messages']) > 1:
+        if st.button("🗑️ Clear Chat", type="secondary"):
+            st.session_state['chat_messages'] = [
+                {"role": "assistant", "content": f"👋 **Welcome to A.R.I.A., {user_email.split('@')[0]}!**\n\nI'm your AI assistant. I can help you:\n- 🎯 Find new business leads\n- ✉️ Write professional responses\n-  Manage customer reviews\n- 🎨 Create marketing content\n- 📱 Send WhatsApp broadcasts\n- 💰 Negotiate with vendors\n\n**What would you like to do first?**"}
+            ]
+            st.rerun()
+
+# TAB 4: LEAD FINDER
+with tabs[3]:
     st.header("Lead Finder")
     st.markdown("Find real businesses with verified emails in your target market.")
     
@@ -345,8 +782,8 @@ with tabs[2]:
                     st.success("✅ Leads Found!")
                     st.code(result.raw, language="json")
 
-# TAB 4: RESPONSE WRITER
-with tabs[3]:
+# TAB 5: RESPONSE WRITER
+with tabs[4]:
     st.header("Response Writer")
     st.markdown("Generate professional property profiles and reply emails.")
     
@@ -364,8 +801,8 @@ with tabs[3]:
                     st.divider()
                     st.markdown(parts[1])
 
-# TAB 5: CONTENT STUDIO
-with tabs[4]:
+# TAB 6: CONTENT STUDIO
+with tabs[5]:
     st.header("Content Studio")
     st.markdown("Turn one piece of content into a full week of marketing materials.")
     
@@ -380,8 +817,8 @@ with tabs[4]:
                 st.success("✅ Content Generated!")
                 st.markdown(parsed.get('blog', ''))
 
-# TAB 6: REVIEW RESPONSES
-with tabs[5]:
+# TAB 7: REVIEW RESPONSES
+with tabs[6]:
     st.header("Review Responses")
     st.markdown("Instantly generate empathetic, brand-safe responses to reviews.")
     
@@ -397,8 +834,8 @@ with tabs[5]:
                 st.success("✅ Response Generated!")
                 st.markdown(result.raw)
 
-# TAB 7: WHATSAPP STUDIO
-with tabs[6]:
+# TAB 8: WHATSAPP STUDIO
+with tabs[7]:
     st.header("WhatsApp Studio")
     st.markdown("Create engaging WhatsApp broadcasts for your customer list.")
     
@@ -417,13 +854,13 @@ with tabs[6]:
                     st.success("✅ Broadcast Generated!")
                     st.code(result.raw, language="text")
 
-# TAB 8: NEGOTIATOR
-with tabs[7]:
+# TAB 9: NEGOTIATOR
+with tabs[8]:
     st.header("Negotiator")
     st.markdown("Lower your business costs with data-driven negotiation emails.")
     
     if not user_settings.get('contact_info'):
-        st.warning("⚠️ Complete Business Profile first!")
+        st.warning("️ Complete Business Profile first!")
     else:
         with st.form("vendor_form"):
             col1, col2 = st.columns(2)
