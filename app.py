@@ -537,55 +537,36 @@ elif page == 'review':
 elif page == 'ai_chat':
     page_header("AI Chat", "Ask ARIA anything about your business. Get instant AI assistance.", "Home › AI Tools › AI Chat")
     
-    # Chat container
-    st.markdown('<div class="dashboard-card" style="min-height: 500px;">', unsafe_allow_html=True)
+    # Initialize chat messages (use native Streamlit chat)
+    if 'chat_messages' not in st.session_state:
+        st.session_state['chat_messages'] = [
+            {"role": "assistant", "content": "👋 Hi! I'm ARIA. How can I help you today?"}
+        ]
     
-    # Display chat history
-    if st.session_state['chat_history']:
-        for message in st.session_state['chat_history']:
-            if message['role'] == 'user':
-                st.markdown(f"""
-                <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
-                    <div style="background:#16A34A; color:white; padding:12px 16px; border-radius:12px 12px 0 12px; max-width:70%; font-size:14px;">
-                        {message['content']}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                else:
-                st.markdown(f"**ARIA:**\n\n{message['content']}")
-                st.markdown("---")
-    else:
-        # Welcome message
-        st.markdown("""
-        <div style="text-align:center; padding:40px 20px;">
-            <div style="font-size:48px; margin-bottom:16px;">🤖</div>
-            <h2 style="color:#0F172A; margin-bottom:8px;">ARIA</h2>
-            <p style="color:#64748B; font-size:16px;">How can I help?</p>
-        </div>
-        """, unsafe_allow_html=True)
+    # Display chat messages using Streamlit's native chat component
+    for message in st.session_state['chat_messages']:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
     
     # Suggestion chips
-    st.markdown('<div style="margin-top:24px;">', unsafe_allow_html=True)
+    st.markdown("### 💡 Quick Actions")
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button(" Generate an Onam Campaign", use_container_width=True, type="secondary"):
-            user_input = "Generate an Onam Campaign for my business"
-            st.session_state['chat_history'].append({'role': 'user', 'content': user_input})
-            
-            # AI Response
-            ai_response = f"""
+        if st.button("🎉 Generate an Onam Campaign", use_container_width=True, type="secondary"):
+            st.session_state['chat_messages'].append({"role": "user", "content": "Generate an Onam Campaign"})
+            response = f"""
 **🎉 Onam Campaign for {user_settings.get('business_name', 'Your Business')}**
 
 Here's a complete Onam campaign strategy:
 
 **1. WhatsApp Broadcast:**
-"🌸 Happy Onam! 
+" Happy Onam! 
 
 Celebrate this festival with special offers from {user_settings.get('business_name', 'our business')}!
 
 🎁 **Special Onam Discount:** 20% off on all services
-🍽️ **Festival Feast:** Traditional Onam sadhya available
+️ **Festival Feast:** Traditional Onam sadhya available
  **Stay & Celebrate:** Book 2 nights, get 1 free
 
 Valid till September 15th. 
@@ -608,47 +589,40 @@ Subject: "🌸 Celebrate Onam with Special Offers!"
 **4. Local Lead Outreach:**
 Target: Tour operators in Kerala for Onam package partnerships
 
-Would you like me to generate any of these in detail?
+👉 Use **WhatsApp Studio** or **Content Studio** to generate these in detail!
 """
-            st.session_state['chat_history'].append({'role': 'assistant', 'content': ai_response})
+            st.session_state['chat_messages'].append({"role": "assistant", "content": response})
             st.rerun()
         
-        if st.button(" Find hotels in Kochi", use_container_width=True, type="secondary"):
-            user_input = "Find hotels in Kochi"
-            st.session_state['chat_history'].append({'role': 'user', 'content': user_input})
-            
-            ai_response = """
+        if st.button("🏨 Find hotels in Kochi", use_container_width=True, type="secondary"):
+            st.session_state['chat_messages'].append({"role": "user", "content": "Find hotels in Kochi"})
+            response = """
 **🏨 Finding Hotels in Kochi**
 
-I'll search for boutique hotels and resorts in Kochi for potential partnerships.
+I'll help you find potential business partners in Kochi!
 
 **Recommended Action:** Use the **Lead Finder** module for a comprehensive search with verified emails.
 
-**Quick Preview:**
-I can find:
-- Boutique hotels (5-20 rooms)
-- Heritage properties
-- Resort chains
-- Budget accommodations
+**What Lead Finder provides:**
+- ✅ Verified business emails
+- ✅ Contact person details
+- ✅ Company information
+- ✅ AI-personalized outreach emails
 
-**Suggested Search Parameters:**
+**Suggested Search:**
 - Category: "boutique hotels" or "heritage hotels"
 - Location: "Kochi, Kerala"
 - Number of leads: 5-10
 
-👉 **Click "Lead Finder" in the sidebar** to run a full search with AI-powered email verification and contact details.
-
-Would you like me to guide you through the Lead Finder module?
+ **Click "Lead Finder" in the sidebar** to run a full search!
 """
-            st.session_state['chat_history'].append({'role': 'assistant', 'content': ai_response})
+            st.session_state['chat_messages'].append({"role": "assistant", "content": response})
             st.rerun()
     
     with col2:
         if st.button("⭐ Write reply to Google review", use_container_width=True, type="secondary"):
-            user_input = "Write reply to Google review"
-            st.session_state['chat_history'].append({'role': 'user', 'content': user_input})
-            
-            ai_response = """
+            st.session_state['chat_messages'].append({"role": "user", "content": "Write reply to Google review"})
+            response = """
 **⭐ Google Review Response**
 
 I can help you craft a professional, empathetic response to any Google review.
@@ -664,24 +638,22 @@ If a customer wrote: *"Great food but slow service"*
 I would generate:
 *"Dear John, thank you for your feedback! We're delighted you enjoyed our food. We sincerely apologize for the wait time and are working to improve our service speed. We'd love to welcome you back for a better experience. Warm regards, [Your Name]"*
 
-👉 **Click "Response Writer" in the sidebar** to generate a custom response.
+ **Click "Response Writer" in the sidebar** to generate a custom response.
 
 Or paste the review here and I'll draft a response right now!
 """
-            st.session_state['chat_history'].append({'role': 'assistant', 'content': ai_response})
+            st.session_state['chat_messages'].append({"role": "assistant", "content": response})
             st.rerun()
         
-        if st.button("📱 Create WhatsApp campaign", use_container_width=True, type="secondary"):
-            user_input = "Create WhatsApp campaign"
-            st.session_state['chat_history'].append({'role': 'user', 'content': user_input})
-            
-            ai_response = f"""
+        if st.button(" Create WhatsApp campaign", use_container_width=True, type="secondary"):
+            st.session_state['chat_messages'].append({"role": "user", "content": "Create WhatsApp campaign"})
+            response = f"""
 ** WhatsApp Campaign Creator**
 
 I'll help you create an engaging WhatsApp broadcast for your customers.
 
 **Campaign Types:**
--  Special Offers & Discounts
+- 🎁 Special Offers & Discounts
 - 🎉 Festival Greetings
 - 👋 Welcome Back Messages
 - 📢 New Product/Service Announcements
@@ -692,7 +664,7 @@ I'll help you create an engaging WhatsApp broadcast for your customers.
 3. **Target Audience** (All, VIP, New customers)
 
 **Quick Example:**
-*" Weekend Special! 🌟
+*"🌟 Weekend Special! 🌟
 
 Get 25% off on all bookings this weekend!
 
@@ -707,37 +679,28 @@ Reply YES to book now!
 
 Reply STOP to unsubscribe"*
 
-👉 **Click "WhatsApp Studio" in the sidebar** to generate a custom campaign.
+ **Click "WhatsApp Studio" in the sidebar** to generate a custom campaign.
 
 Or tell me your offer details and I'll draft it here!
 """
-            st.session_state['chat_history'].append({'role': 'assistant', 'content': ai_response})
+            st.session_state['chat_messages'].append({"role": "assistant", "content": response})
             st.rerun()
     
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Chat input
-    st.markdown('<div class="dashboard-card" style="margin-top:24px;">', unsafe_allow_html=True)
-    with st.form("chat_input_form", clear_on_submit=True):
-        user_message = st.text_input("Message ARIA...", placeholder="Type your question or request...", label_visibility="collapsed")
-        col1, col2 = st.columns([6, 1])
-        with col2:
-            submitted = st.form_submit_button("Send", type="primary", use_container_width=True)
+    # Chat input using Streamlit's native chat_input
+    st.markdown("---")
+    if prompt := st.chat_input("Message ARIA..."):
+        st.session_state['chat_messages'].append({"role": "user", "content": prompt})
         
-        if submitted and user_message:
-            st.session_state['chat_history'].append({'role': 'user', 'content': user_message})
-            
-            # Simple AI response based on keywords
-            msg_lower = user_message.lower()
-            
-            if 'onam' in msg_lower or 'campaign' in msg_lower or 'festival' in msg_lower:
-                ai_response = f"""
-**🎉 Campaign Generation**
+        # Simple AI response based on keywords
+        msg_lower = prompt.lower()
+        
+        if 'onam' in msg_lower or 'campaign' in msg_lower or 'festival' in msg_lower:
+            response = f"""
+** Campaign Generation**
 
-I can help you create a complete campaign! Here's what I recommend:
+I can help you create a complete campaign for **{user_settings.get('business_name', 'your business')}**!
 
-**For {user_settings.get('business_name', 'your business')}:**
-
+**Recommended Actions:**
 1. **WhatsApp Broadcast** - Direct customer outreach
 2. **Social Media Posts** - Instagram, Facebook, Twitter
 3. **Email Newsletter** - For your subscriber list
@@ -748,13 +711,15 @@ I can help you create a complete campaign! Here's what I recommend:
 - Use **Content Studio** for social media content
 - Use **Lead Finder** to find partnership opportunities
 
-Would you like me to generate any specific campaign material? Just tell me:
+**Tell me more:**
 - Campaign type (festival, offer, announcement)
 - Target audience
 - Key message or offer details
+
+I'll generate the content for you!
 """
-            elif 'hotel' in msg_lower or 'lead' in msg_lower or 'find' in msg_lower:
-                ai_response = """
+        elif 'hotel' in msg_lower or 'lead' in msg_lower or 'find' in msg_lower:
+            response = """
 **🎯 Lead Generation**
 
 I can help you find potential business partners!
@@ -775,8 +740,8 @@ Use the **Lead Finder** module for:
 
 👉 Click **Lead Finder** in the sidebar to start!
 """
-            elif 'review' in msg_lower or 'reply' in msg_lower or 'response' in msg_lower:
-                ai_response = """
+        elif 'review' in msg_lower or 'reply' in msg_lower or 'response' in msg_lower:
+            response = """
 **⭐ Review Response**
 
 I'll help you craft the perfect response to any review!
@@ -792,13 +757,10 @@ I'll help you craft the perfect response to any review!
 - ✅ Be empathetic and professional
 - ✅ Include your contact info
 
-**Example Response:**
-*"Dear [Name], thank you for your feedback! [Specific acknowledgment]. [Action/offer]. We look forward to welcoming you back. Warm regards, [Your Name]"*
-
  Use **Response Writer** for a guided experience, or paste the review here and I'll draft it now!
 """
-            elif 'whatsapp' in msg_lower or 'broadcast' in msg_lower:
-                ai_response = f"""
+        elif 'whatsapp' in msg_lower or 'broadcast' in msg_lower:
+            response = f"""
 **📱 WhatsApp Broadcast**
 
 Let's create an engaging message for your customers!
@@ -809,22 +771,6 @@ Let's create an engaging message for your customers!
 - Strong call-to-action
 - Unsubscribe option
 
-**Template:**
-*"🌟 [Headline] 🌟
-
-[Main message/offer]
-
-✅ [Benefit 1]
-✅ [Benefit 2]
-✅ [Validity/Deadline]
-
-Reply [ACTION] to [desired action]!
-
-{user_settings.get('business_name', 'Your Business')}
-{user_settings.get('contact_info', 'Contact')}
-
-Reply STOP to unsubscribe"*
-
 **Tell me:**
 - What's the offer or message?
 - Who's the target audience?
@@ -832,39 +778,38 @@ Reply STOP to unsubscribe"*
 
 Or click **WhatsApp Studio** for a guided experience!
 """
-            else:
-                ai_response = f"""
+        else:
+            response = f"""
 **🤖 ARIA Assistant**
 
 I'm here to help you with your business automation!
 
 **I can assist with:**
 - 🎉 **Campaign Generation** - Festival, offers, announcements
--  **Lead Generation** - Find businesses in your area
+- 🎯 **Lead Generation** - Find businesses in your area
 - ⭐ **Review Responses** - Professional replies to customer reviews
 - 📱 **WhatsApp Campaigns** - Engaging broadcast messages
--  **Content Creation** - Blogs, social posts, newsletters
+- 🎨 **Content Creation** - Blogs, social posts, newsletters
 - 🤝 **Vendor Negotiation** - Cost reduction emails
-
-**Quick Actions:**
-Use the suggestion buttons above, or tell me what you need!
 
 **Your Business:** {user_settings.get('business_name', 'Not configured')}
 **Location:** {user_settings.get('location', 'Not set')}
 
-💡 **Tip:** Complete your **Business Profile** for personalized AI responses!
+ **Tip:** Complete your **Business Profile** for personalized AI responses!
+
+What would you like help with?
 """
-            
-            st.session_state['chat_history'].append({'role': 'assistant', 'content': ai_response})
-            st.rerun()
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+        
+        st.session_state['chat_messages'].append({"role": "assistant", "content": response})
+        st.rerun()
     
     # Clear chat button
-    if st.session_state['chat_history']:
+    if len(st.session_state['chat_messages']) > 1:
         if st.button("🗑️ Clear Chat History", type="secondary"):
-            st.session_state['chat_history'] = []
+            st.session_state['chat_messages'] = [{"role": "assistant", "content": "👋 Hi! I'm ARIA. How can I help you today?"}]
             st.rerun()
+
+# --- COMING SOON PAGES ---
 
 # --- COMING SOON PAGES ---
 elif page in ['team', 'api', 'manual']:
