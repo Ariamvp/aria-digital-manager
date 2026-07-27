@@ -153,7 +153,35 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. AUTHENTICATION
+
+# ==========================================
+
+
+# ==========================================
+# 3. MOBILE MENU TOGGLE
+# ==========================================
+
+# Initialize mobile sidebar state
+if 'show_sidebar' not in st.session_state:
+    st.session_state['show_sidebar'] = True
+
+# Mobile top bar with hamburger menu
+mobile_col1, mobile_col2, mobile_col3 = st.columns([1, 10, 1])
+with mobile_col1:
+    if st.button("☰", key="mobile_menu_btn", use_container_width=True, help="Toggle menu"):
+        st.session_state['show_sidebar'] = not st.session_state['show_sidebar']
+        st.rerun()
+
+with mobile_col2:
+    st.markdown("<h2 style='margin-top:8px; margin-bottom:0; font-size:20px; color:#0F172A;'>A.R.I.A. Command Center</h2>", unsafe_allow_html=True)
+
+with mobile_col3:
+    st.markdown("")  # Spacer
+
+st.markdown("---")
+
+# ==========================================
+# 4. AUTHENTICATION
 # ==========================================
 def login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -209,7 +237,7 @@ def get_user_role(user_id):
     except: return 'user'
 
 # ==========================================
-# 4. CREW DEFINITIONS
+# 5. CREW DEFINITIONS
 # ==========================================
 @st.cache_resource
 def create_negotiation_crew():
@@ -265,7 +293,7 @@ def create_response_crew():
         Generate TWO things:
         === PART 1: PROPERTY PROFILE ===
         # 🏨 PROPERTY PROFILE: {business_name}
-        ## 📍 Location, ️ Rooms, 💰 Rates, 🍽️ Meals, ✨ Amenities, 📸 Photos, 🌟 Offers, 🗺️ Nearby
+        ## 📍 Location, 🛏️ Rooms, 💰 Rates, 🍽️ Meals, ✨ Amenities, 📸 Photos, 🌟 Offers, 🗺️ Nearby
         === PART 2: EMAIL ===
         Write short email (<100 words):
         1. Extract sender name. If blank, use "Valued Partner".
@@ -314,13 +342,14 @@ def parse_json_output(raw_output):
     except:
         return {"subject": "Error", "body": raw_output}
 
-
 # Initialize chat history
-if 'chat_history' not in st.session_state:
-    st.session_state['chat_history'] = []
+if 'chat_messages' not in st.session_state:
+    st.session_state['chat_messages'] = [
+        {"role": "assistant", "content": "👋 Hi! I'm ARIA. How can I help you today?"}
+    ]
 
 # ==========================================
-# 5. MAIN APP LOGIC
+# 6. MAIN APP LOGIC
 # ==========================================
 if 'user' not in st.session_state:
     login_page()
@@ -335,65 +364,75 @@ user_role = get_user_role(st.session_state['user'].id)
 user_email = st.session_state['user'].email
 
 # ==========================================
-# 6. SIDEBAR NAVIGATION
+# 7. SIDEBAR NAVIGATION (WITH MOBILE TOGGLE)
 # ==========================================
-with st.sidebar:
-    # Brand
-    st.markdown('<div style="display:flex; align-items:center; gap:12px; padding:10px 0 24px; border-bottom:1px solid #1E293B; margin-bottom:24px;">', unsafe_allow_html=True)
-    st.markdown('<div style="font-size:24px;">🔥</div>', unsafe_allow_html=True)
-    st.markdown('<div><div style="font-size:18px; font-weight:700; color:#F8FAFC;">A.R.I.A</div><div style="font-size:10px; color:#16A34A; font-weight:600; letter-spacing:1px;">COMMAND CENTER</div></div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Navigation
-    st.markdown('<div class="sidebar-section">Dashboard</div>', unsafe_allow_html=True)
-    if st.button(" Dashboard", use_container_width=True, type="primary" if st.session_state['page'] == 'dashboard' else "secondary"):
-        st.session_state['page'] = 'dashboard'; st.rerun()
-    
-    st.markdown('<div class="sidebar-section">Business</div>', unsafe_allow_html=True)
-    if st.button("🏢 Business Profile", use_container_width=True, type="primary" if st.session_state['page'] == 'business' else "secondary"):
-        st.session_state['page'] = 'business'; st.rerun()
-    if st.button("👥 Team Members", use_container_width=True, type="primary" if st.session_state['page'] == 'team' else "secondary"):
-        st.session_state['page'] = 'team'; st.rerun()
-    
-    st.markdown('<div class="sidebar-section">AI Tools</div>', unsafe_allow_html=True)
-    if st.button(" AI Chat", use_container_width=True, type="primary" if st.session_state['page'] == 'ai_chat' else "secondary"):
-        st.session_state['page'] = 'ai_chat'; st.rerun()
-    if st.button(" Negotiator", use_container_width=True, type="primary" if st.session_state['page'] == 'vendor' else "secondary"):
-        st.session_state['page'] = 'vendor'; st.rerun()
-    if st.button("🎨 Content Studio", use_container_width=True, type="primary" if st.session_state['page'] == 'content' else "secondary"):
-        st.session_state['page'] = 'content'; st.rerun()
-    if st.button("✉️ Response Writer", use_container_width=True, type="primary" if st.session_state['page'] == 'response' else "secondary"):
-        st.session_state['page'] = 'response'; st.rerun()
-    if st.button("🎯 Lead Finder", use_container_width=True, type="primary" if st.session_state['page'] == 'leadgen' else "secondary"):
-        st.session_state['page'] = 'leadgen'; st.rerun()
-    if st.button("📱 WhatsApp Studio", use_container_width=True, type="primary" if st.session_state['page'] == 'whatsapp' else "secondary"):
-        st.session_state['page'] = 'whatsapp'; st.rerun()
-    if st.button("⭐ Review Responses", use_container_width=True, type="primary" if st.session_state['page'] == 'review' else "secondary"):
-        st.session_state['page'] = 'review'; st.rerun()
-    
-    st.markdown('<div class="sidebar-section">Integrations</div>', unsafe_allow_html=True)
-    if st.button("🔑 API Keys", use_container_width=True, type="primary" if st.session_state['page'] == 'api' else "secondary"):
-        st.session_state['page'] = 'api'; st.rerun()
-    
-    st.markdown('<div class="sidebar-section">Help</div>', unsafe_allow_html=True)
-    if st.button("📖 User Manual", use_container_width=True, type="primary" if st.session_state['page'] == 'manual' else "secondary"):
-        st.session_state['page'] = 'manual'; st.rerun()
-    
-    st.divider()
-    
-    # User Profile
-    st.markdown(f'<div style="display:flex; align-items:center; gap:12px; padding:12px; background:#1E293B; border-radius:8px; margin-bottom:12px;">', unsafe_allow_html=True)
-    st.markdown(f'<div style="width:36px; height:36px; background:#16A34A; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; color:white;">{user_email[0].upper()}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div><div style="font-size:13px; font-weight:600; color:#F8FAFC;">{user_email.split("@")[0]}</div><div style="font-size:11px; color:#16A34A;">{"Admin" if user_role == "admin" else "Free Trial"}</div></div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    if st.button("🚪 Logout", use_container_width=True, type="secondary"):
-        supabase.auth.sign_out()
-        st.session_state.clear()
-        st.rerun()
+
+# Only show sidebar if toggled on (for mobile)
+if st.session_state.get('show_sidebar', True):
+    with st.sidebar:
+        # Close button for mobile
+        col_close1, col_close2 = st.columns([4, 1])
+        with col_close2:
+            if st.button("✕", key="close_sidebar", help="Close menu"):
+                st.session_state['show_sidebar'] = False
+                st.rerun()
+        
+        # Brand
+        st.markdown('<div style="display:flex; align-items:center; gap:12px; padding:10px 0 24px; border-bottom:1px solid #1E293B; margin-bottom:24px;">', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:24px;">🔥</div>', unsafe_allow_html=True)
+        st.markdown('<div><div style="font-size:18px; font-weight:700; color:#F8FAFC;">A.R.I.A</div><div style="font-size:10px; color:#16A34A; font-weight:600; letter-spacing:1px;">COMMAND CENTER</div></div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Navigation
+        st.markdown('<div class="sidebar-section">Dashboard</div>', unsafe_allow_html=True)
+        if st.button("🏠 Dashboard", use_container_width=True, type="primary" if st.session_state['page'] == 'dashboard' else "secondary"):
+            st.session_state['page'] = 'dashboard'; st.rerun()
+        
+        st.markdown('<div class="sidebar-section">Business</div>', unsafe_allow_html=True)
+        if st.button("🏢 Business Profile", use_container_width=True, type="primary" if st.session_state['page'] == 'business' else "secondary"):
+            st.session_state['page'] = 'business'; st.rerun()
+        if st.button(" Team Members", use_container_width=True, type="primary" if st.session_state['page'] == 'team' else "secondary"):
+            st.session_state['page'] = 'team'; st.rerun()
+        
+        st.markdown('<div class="sidebar-section">AI Tools</div>', unsafe_allow_html=True)
+        if st.button("💬 AI Chat", use_container_width=True, type="primary" if st.session_state['page'] == 'ai_chat' else "secondary"):
+            st.session_state['page'] = 'ai_chat'; st.rerun()
+        if st.button("🤝 Negotiator", use_container_width=True, type="primary" if st.session_state['page'] == 'vendor' else "secondary"):
+            st.session_state['page'] = 'vendor'; st.rerun()
+        if st.button("🎨 Content Studio", use_container_width=True, type="primary" if st.session_state['page'] == 'content' else "secondary"):
+            st.session_state['page'] = 'content'; st.rerun()
+        if st.button("✉️ Response Writer", use_container_width=True, type="primary" if st.session_state['page'] == 'response' else "secondary"):
+            st.session_state['page'] = 'response'; st.rerun()
+        if st.button(" Lead Finder", use_container_width=True, type="primary" if st.session_state['page'] == 'leadgen' else "secondary"):
+            st.session_state['page'] = 'leadgen'; st.rerun()
+        if st.button("📱 WhatsApp Studio", use_container_width=True, type="primary" if st.session_state['page'] == 'whatsapp' else "secondary"):
+            st.session_state['page'] = 'whatsapp'; st.rerun()
+        if st.button("⭐ Review Responses", use_container_width=True, type="primary" if st.session_state['page'] == 'review' else "secondary"):
+            st.session_state['page'] = 'review'; st.rerun()
+        
+        st.markdown('<div class="sidebar-section">Integrations</div>', unsafe_allow_html=True)
+        if st.button("🔑 API Keys", use_container_width=True, type="primary" if st.session_state['page'] == 'api' else "secondary"):
+            st.session_state['page'] = 'api'; st.rerun()
+        
+        st.markdown('<div class="sidebar-section">Help</div>', unsafe_allow_html=True)
+        if st.button("📖 User Manual", use_container_width=True, type="primary" if st.session_state['page'] == 'manual' else "secondary"):
+            st.session_state['page'] = 'manual'; st.rerun()
+        
+        st.divider()
+        
+        # User Profile
+        st.markdown(f'<div style="display:flex; align-items:center; gap:12px; padding:12px; background:#1E293B; border-radius:8px; margin-bottom:12px;">', unsafe_allow_html=True)
+        st.markdown(f'<div style="width:36px; height:36px; background:#16A34A; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; color:white;">{user_email[0].upper()}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div><div style="font-size:13px; font-weight:600; color:#F8FAFC;">{user_email.split("@")[0]}</div><div style="font-size:11px; color:#16A34A;">{"Admin" if user_role == "admin" else "Free Trial"}</div></div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        if st.button("🚪 Logout", use_container_width=True, type="secondary"):
+            supabase.auth.sign_out()
+            st.session_state.clear()
+            st.rerun()
 
 # ==========================================
-# 7. PAGE ROUTER
+# 8. PAGE ROUTER
 # ==========================================
 page = st.session_state['page']
 
@@ -409,11 +448,6 @@ def page_header(title, subtitle, breadcrumb=""):
 if page == 'dashboard':
     page_header("Dashboard", "Welcome back! Here's what's happening with your business today.", "Home › Dashboard")
     
-        # Responsive columns - stack on mobile
-    if st.get_option('browser.serverAddress'):  # Always true, just for structure
-        pass
-    
-    # Use 2 columns on tablet, 1 on mobile via CSS (handled above)
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown('<div class="metric-card"><div class="metric-label">Total Leads</div><div class="metric-value">247</div><div class="metric-trend">↑ 12% this week</div></div>', unsafe_allow_html=True)
@@ -430,9 +464,8 @@ if page == 'dashboard':
 elif page == 'business':
     page_header("Business Profile", "Configure your business details to personalize all AI outputs.", "Home › Business › Business Profile")
     
-    # Card 1: Business Info
     st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
-    st.markdown('<div class="card-header"><div class="card-title"><div class="card-icon">🏢</div>Business Information</div><div class="card-badge">🔒 Used across all AI tools</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="card-header"><div class="card-title"><div class="card-icon"></div>Business Information</div><div class="card-badge">🔒 Used across all AI tools</div></div>', unsafe_allow_html=True)
     
     with st.form("business_form"):
         col1, col2 = st.columns(2)
@@ -445,7 +478,7 @@ elif page == 'business':
             biz_pitch = st.text_area("Core Pitch *", height=100, value=user_settings.get('business_pitch', ''))
         
         st.markdown('</div><div class="dashboard-card" style="margin-top:24px;">', unsafe_allow_html=True)
-        st.markdown('<div class="card-header"><div class="card-title"><div class="card-icon">🔑</div>Integration Credentials</div><div class="card-badge">🛡️ Encrypted and secure</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-header"><div class="card-title"><div class="card-icon">🔑</div>Integration Credentials</div><div class="card-badge">️ Encrypted and secure</div></div>', unsafe_allow_html=True)
         
         col3, col4 = st.columns(2)
         with col3:
@@ -547,7 +580,7 @@ elif page == 'whatsapp':
     page_header("WhatsApp Studio", "Create engaging WhatsApp broadcasts for your customer list.", "Home › AI Tools › WhatsApp Studio")
     st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
     if not user_settings.get('business_name'):
-        st.warning("⚠️ Complete Business Profile first!")
+        st.warning("️ Complete Business Profile first!")
     else:
         with st.form("whatsapp_form"):
             col1, col2 = st.columns(2)
@@ -582,18 +615,15 @@ elif page == 'review':
 elif page == 'ai_chat':
     page_header("AI Chat", "Ask ARIA anything about your business. Get instant AI assistance.", "Home › AI Tools › AI Chat")
     
-    # Initialize chat messages
     if 'chat_messages' not in st.session_state:
         st.session_state['chat_messages'] = [
             {"role": "assistant", "content": "👋 Hi! I'm ARIA. How can I help you today?"}
         ]
     
-    # Display chat messages
     for message in st.session_state['chat_messages']:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
     
-    # Suggestion buttons
     st.markdown("### 💡 Quick Actions")
     col1, col2 = st.columns(2)
     
@@ -601,7 +631,7 @@ elif page == 'ai_chat':
         if st.button("🎉 Generate an Onam Campaign", use_container_width=True, type="secondary"):
             st.session_state['chat_messages'].append({"role": "user", "content": "Generate an Onam Campaign"})
             response = f"""
-** Onam Campaign for {user_settings.get('business_name', 'Your Business')}**
+**🎉 Onam Campaign for {user_settings.get('business_name', 'Your Business')}**
 
 Here's a complete Onam campaign strategy:
 
@@ -610,9 +640,9 @@ Here's a complete Onam campaign strategy:
 
 Celebrate this festival with special offers from {user_settings.get('business_name', 'our business')}!
 
- **Special Onam Discount:** 20% off on all services
+🎁 **Special Onam Discount:** 20% off on all services
 🍽️ **Festival Feast:** Traditional Onam sadhya available
- **Stay & Celebrate:** Book 2 nights, get 1 free
+🏨 **Stay & Celebrate:** Book 2 nights, get 1 free
 
 Valid till September 15th. 
 
@@ -682,19 +712,17 @@ I'll help you create an engaging WhatsApp broadcast.
 2. **Offer Details**
 3. **Target Audience**
 
-👉 **Click "WhatsApp Studio" in the sidebar** to generate a custom campaign.
+ **Click "WhatsApp Studio" in the sidebar** to generate a custom campaign.
 
 Or tell me your offer details and I'll draft it here!
 """
             st.session_state['chat_messages'].append({"role": "assistant", "content": response})
             st.rerun()
     
-    # Chat input
     st.markdown("---")
     if prompt := st.chat_input("Message ARIA..."):
         st.session_state['chat_messages'].append({"role": "user", "content": prompt})
         
-        # AI response based on keywords
         msg_lower = prompt.lower()
         
         if 'onam' in msg_lower or 'campaign' in msg_lower:
@@ -760,9 +788,9 @@ I'm here to help with your business automation!
 -  Campaign Generation
 - 🎯 Lead Generation  
 - ⭐ Review Responses
--  WhatsApp Campaigns
+- 📱 WhatsApp Campaigns
 - 🎨 Content Creation
-- 🤝 Vendor Negotiation
+-  Vendor Negotiation
 
 **Your Business:** {user_settings.get('business_name', 'Not configured')}
 
@@ -772,13 +800,10 @@ What would you like help with?
         st.session_state['chat_messages'].append({"role": "assistant", "content": response})
         st.rerun()
     
-    # Clear chat button
     if len(st.session_state['chat_messages']) > 1:
-        if st.button("🗑️ Clear Chat History", type="secondary"):
+        if st.button("️ Clear Chat History", type="secondary"):
             st.session_state['chat_messages'] = [{"role": "assistant", "content": "👋 Hi! I'm ARIA. How can I help you today?"}]
             st.rerun()
-
-
 
 # --- COMING SOON PAGES ---
 elif page in ['team', 'api', 'manual']:
