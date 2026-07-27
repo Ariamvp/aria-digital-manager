@@ -537,18 +537,18 @@ elif page == 'review':
 elif page == 'ai_chat':
     page_header("AI Chat", "Ask ARIA anything about your business. Get instant AI assistance.", "Home › AI Tools › AI Chat")
     
-    # Initialize chat messages (use native Streamlit chat)
+    # Initialize chat messages
     if 'chat_messages' not in st.session_state:
         st.session_state['chat_messages'] = [
             {"role": "assistant", "content": "👋 Hi! I'm ARIA. How can I help you today?"}
         ]
     
-    # Display chat messages using Streamlit's native chat component
+    # Display chat messages
     for message in st.session_state['chat_messages']:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
     
-    # Suggestion chips
+    # Suggestion buttons
     st.markdown("### 💡 Quick Actions")
     col1, col2 = st.columns(2)
     
@@ -556,17 +556,17 @@ elif page == 'ai_chat':
         if st.button("🎉 Generate an Onam Campaign", use_container_width=True, type="secondary"):
             st.session_state['chat_messages'].append({"role": "user", "content": "Generate an Onam Campaign"})
             response = f"""
-**🎉 Onam Campaign for {user_settings.get('business_name', 'Your Business')}**
+** Onam Campaign for {user_settings.get('business_name', 'Your Business')}**
 
 Here's a complete Onam campaign strategy:
 
 **1. WhatsApp Broadcast:**
-" Happy Onam! 
+"🌸 Happy Onam! 
 
 Celebrate this festival with special offers from {user_settings.get('business_name', 'our business')}!
 
-🎁 **Special Onam Discount:** 20% off on all services
-️ **Festival Feast:** Traditional Onam sadhya available
+ **Special Onam Discount:** 20% off on all services
+🍽️ **Festival Feast:** Traditional Onam sadhya available
  **Stay & Celebrate:** Book 2 nights, get 1 free
 
 Valid till September 15th. 
@@ -578,17 +578,6 @@ Warm regards,
 
 Reply STOP to unsubscribe"
 
-**2. Social Media Posts:**
-- Instagram: Carousel of Onam celebrations at your venue
-- Facebook: Event page for Onam special events
-- Stories: Behind-the-scenes of Onam preparations
-
-**3. Email Newsletter:**
-Subject: "🌸 Celebrate Onam with Special Offers!"
-
-**4. Local Lead Outreach:**
-Target: Tour operators in Kerala for Onam package partnerships
-
 👉 Use **WhatsApp Studio** or **Content Studio** to generate these in detail!
 """
             st.session_state['chat_messages'].append({"role": "assistant", "content": response})
@@ -599,22 +588,14 @@ Target: Tour operators in Kerala for Onam package partnerships
             response = """
 **🏨 Finding Hotels in Kochi**
 
-I'll help you find potential business partners in Kochi!
+Use the **Lead Finder** module for a comprehensive search with verified emails.
 
-**Recommended Action:** Use the **Lead Finder** module for a comprehensive search with verified emails.
-
-**What Lead Finder provides:**
+**What you get:**
 - ✅ Verified business emails
 - ✅ Contact person details
 - ✅ Company information
-- ✅ AI-personalized outreach emails
 
-**Suggested Search:**
-- Category: "boutique hotels" or "heritage hotels"
-- Location: "Kochi, Kerala"
-- Number of leads: 5-10
-
- **Click "Lead Finder" in the sidebar** to run a full search!
+👉 Click **"Lead Finder" in the sidebar** to run a full search!
 """
             st.session_state['chat_messages'].append({"role": "assistant", "content": response})
             st.rerun()
@@ -625,78 +606,55 @@ I'll help you find potential business partners in Kochi!
             response = """
 **⭐ Google Review Response**
 
-I can help you craft a professional, empathetic response to any Google review.
+I can help you craft a professional response to any Google review.
 
 **To generate a response, I need:**
-1. **Reviewer Name** (e.g., "John D.")
-2. **Review Text** (copy-paste the review)
-3. **Sentiment** (Positive, Negative, or Mixed)
+1. **Reviewer Name**
+2. **Review Text**
+3. **Sentiment** (Positive/Negative/Mixed)
 
-**Example:**
-If a customer wrote: *"Great food but slow service"*
+👉 **Click "Response Writer" in the sidebar** to generate a custom response.
 
-I would generate:
-*"Dear John, thank you for your feedback! We're delighted you enjoyed our food. We sincerely apologize for the wait time and are working to improve our service speed. We'd love to welcome you back for a better experience. Warm regards, [Your Name]"*
-
- **Click "Response Writer" in the sidebar** to generate a custom response.
-
-Or paste the review here and I'll draft a response right now!
+Or paste the review here and I'll draft it now!
 """
             st.session_state['chat_messages'].append({"role": "assistant", "content": response})
             st.rerun()
         
-        if st.button(" Create WhatsApp campaign", use_container_width=True, type="secondary"):
+        if st.button("📱 Create WhatsApp campaign", use_container_width=True, type="secondary"):
             st.session_state['chat_messages'].append({"role": "user", "content": "Create WhatsApp campaign"})
             response = f"""
-** WhatsApp Campaign Creator**
+**📱 WhatsApp Campaign Creator**
 
-I'll help you create an engaging WhatsApp broadcast for your customers.
+I'll help you create an engaging WhatsApp broadcast.
 
 **Campaign Types:**
 - 🎁 Special Offers & Discounts
 - 🎉 Festival Greetings
 - 👋 Welcome Back Messages
-- 📢 New Product/Service Announcements
 
 **To create your campaign, I need:**
-1. **Campaign Type** (from above)
-2. **Offer Details** (discount %, validity, terms)
-3. **Target Audience** (All, VIP, New customers)
+1. **Campaign Type**
+2. **Offer Details**
+3. **Target Audience**
 
-**Quick Example:**
-*"🌟 Weekend Special! 🌟
-
-Get 25% off on all bookings this weekend!
-
-✅ Valid: Sat-Sun only
-✅ Includes: Free breakfast
-✅ Book by: Friday 6pm
-
-Reply YES to book now!
-
-{user_settings.get('business_name', 'Your Business')}
-{user_settings.get('contact_info', 'Contact us')}
-
-Reply STOP to unsubscribe"*
-
- **Click "WhatsApp Studio" in the sidebar** to generate a custom campaign.
+👉 **Click "WhatsApp Studio" in the sidebar** to generate a custom campaign.
 
 Or tell me your offer details and I'll draft it here!
 """
             st.session_state['chat_messages'].append({"role": "assistant", "content": response})
             st.rerun()
     
-    # Chat input using Streamlit's native chat_input
+    # Chat input
     st.markdown("---")
     if prompt := st.chat_input("Message ARIA..."):
         st.session_state['chat_messages'].append({"role": "user", "content": prompt})
         
-        # Simple AI response based on keywords
+        # AI response based on keywords
         msg_lower = prompt.lower()
         
-        if 'onam' in msg_lower or 'campaign' in msg_lower or 'festival' in msg_lower:
+        if 'onam' in msg_lower or 'campaign' in msg_lower:
             response = f"""
-** Campaign Generation**
+**🎉 Campaign Generation**
 
 I can help you create a complete campaign for **{user_settings.get('business_name', 'your business')}**!
 
@@ -704,77 +662,46 @@ I can help you create a complete campaign for **{user_settings.get('business_nam
 1. **WhatsApp Broadcast** - Direct customer outreach
 2. **Social Media Posts** - Instagram, Facebook, Twitter
 3. **Email Newsletter** - For your subscriber list
-4. **Local Partnerships** - Collaborate with tour operators
-
-**Next Steps:**
-- Use **WhatsApp Studio** for broadcast messages
-- Use **Content Studio** for social media content
-- Use **Lead Finder** to find partnership opportunities
 
 **Tell me more:**
 - Campaign type (festival, offer, announcement)
 - Target audience
 - Key message or offer details
-
-I'll generate the content for you!
 """
-        elif 'hotel' in msg_lower or 'lead' in msg_lower or 'find' in msg_lower:
+        elif 'hotel' in msg_lower or 'lead' in msg_lower:
             response = """
 **🎯 Lead Generation**
 
-I can help you find potential business partners!
-
-**Best Approach:**
 Use the **Lead Finder** module for:
 - ✅ Verified business emails
 - ✅ Contact person details
 - ✅ Company information
-- ✅ AI-personalized outreach emails
-
-**Quick Search Parameters:**
-- Category: boutique hotels, restaurants, tour operators
-- Location: Your target city
-- Number of leads: 5-10
-
-**Pro Tip:** After finding leads, use **Response Writer** to create personalized property profiles and outreach emails.
 
 👉 Click **Lead Finder** in the sidebar to start!
 """
-        elif 'review' in msg_lower or 'reply' in msg_lower or 'response' in msg_lower:
+        elif 'review' in msg_lower or 'reply' in msg_lower:
             response = """
 **⭐ Review Response**
 
-I'll help you craft the perfect response to any review!
+I'll help you craft the perfect response!
 
-**What I need from you:**
+**What I need:**
 1. Reviewer's name
 2. The review text
 3. Sentiment (positive/negative/mixed)
 
-**My responses will:**
-- ✅ Match your brand voice
-- ✅ Address specific concerns
-- ✅ Be empathetic and professional
-- ✅ Include your contact info
-
- Use **Response Writer** for a guided experience, or paste the review here and I'll draft it now!
+👉 Use **Response Writer** for a guided experience!
 """
-        elif 'whatsapp' in msg_lower or 'broadcast' in msg_lower:
+        elif 'whatsapp' in msg_lower:
             response = f"""
 **📱 WhatsApp Broadcast**
 
-Let's create an engaging message for your customers!
-
-**Campaign Elements:**
-- Eye-catching emojis (1-2 per line)
-- Clear offer or message
-- Strong call-to-action
-- Unsubscribe option
+Let's create an engaging message!
 
 **Tell me:**
 - What's the offer or message?
 - Who's the target audience?
-- Any specific details to include?
+- Any specific details?
 
 Or click **WhatsApp Studio** for a guided experience!
 """
@@ -782,20 +709,17 @@ Or click **WhatsApp Studio** for a guided experience!
             response = f"""
 **🤖 ARIA Assistant**
 
-I'm here to help you with your business automation!
+I'm here to help with your business automation!
 
 **I can assist with:**
-- 🎉 **Campaign Generation** - Festival, offers, announcements
-- 🎯 **Lead Generation** - Find businesses in your area
-- ⭐ **Review Responses** - Professional replies to customer reviews
-- 📱 **WhatsApp Campaigns** - Engaging broadcast messages
-- 🎨 **Content Creation** - Blogs, social posts, newsletters
-- 🤝 **Vendor Negotiation** - Cost reduction emails
+-  Campaign Generation
+- 🎯 Lead Generation  
+- ⭐ Review Responses
+-  WhatsApp Campaigns
+- 🎨 Content Creation
+- 🤝 Vendor Negotiation
 
 **Your Business:** {user_settings.get('business_name', 'Not configured')}
-**Location:** {user_settings.get('location', 'Not set')}
-
- **Tip:** Complete your **Business Profile** for personalized AI responses!
 
 What would you like help with?
 """
@@ -809,7 +733,7 @@ What would you like help with?
             st.session_state['chat_messages'] = [{"role": "assistant", "content": "👋 Hi! I'm ARIA. How can I help you today?"}]
             st.rerun()
 
-# --- COMING SOON PAGES ---
+
 
 # --- COMING SOON PAGES ---
 elif page in ['team', 'api', 'manual']:
