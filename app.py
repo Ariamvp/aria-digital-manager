@@ -20,77 +20,206 @@ st.set_page_config(page_title="A.R.I.A. Dashboard", page_icon="", layout="wide")
 # ==========================================
 st.markdown("""
 <style>
-    .stApp { background-color: #F8FAFC; font-family: 'Inter', -apple-system, sans-serif; }
+    /* === GLOBAL === */
+    .stApp { 
+        background-color: #F8FAFC; 
+        font-family: 'Inter', -apple-system, sans-serif; 
+    }
     
     /* Hide Streamlit defaults */
     #MainMenu {visibility: hidden;} 
     footer {visibility: hidden;}
     header {visibility: hidden;}
     
-    /* Tabs styling */
+    /* === TABS === */
     .stTabs [data-baseweb="tab-list"] { 
         gap: 8px; 
         background-color: transparent;
         padding: 0;
+        border-bottom: 2px solid #E2E8F0;
     }
     .stTabs [data-baseweb="tab"] { 
         background-color: white;
-        border-radius: 8px;
+        border-radius: 8px 8px 0 0;
         padding: 12px 24px;
         font-weight: 600;
         color: #64748B;
-        border: 1px solid #E2E8F0;
+        border: 2px solid #E2E8F0;
+        border-bottom: none;
+        transition: all 0.2s;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        border-color: #16A34A;
+        color: #16A34A;
     }
     .stTabs [aria-selected="true"] { 
         background-color: #16A34A;
         color: white;
         border-color: #16A34A;
+        border-bottom: 2px solid #16A34A;
     }
     
-    /* Cards */
-    .dashboard-card {
+    /* === CARDS & CONTAINERS === */
+    .dashboard-card, .stForm {
         background: white;
-        border: 1px solid #E2E8F0;
+        border: 2px solid #E2E8F0;
         border-radius: 12px;
         padding: 28px;
         margin-bottom: 24px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
     }
     
-    /* Buttons */
+    /* === INPUT FIELDS - HIGH VISIBILITY === */
+    .stTextInput > div > div > input, 
+    .stTextArea > div > div > textarea, 
+    .stSelectbox > div > div > div,
+    .stNumberInput > div > div > input {
+        background-color: #FFFFFF !important;
+        color: #0F172A !important;
+        border: 2px solid #CBD5E1 !important;
+        border-radius: 8px !important;
+        padding: 12px 16px !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        transition: all 0.2s !important;
+    }
+    
+    /* Input focus state - Green highlight */
+    .stTextInput > div > div > input:focus, 
+    .stTextArea > div > div > textarea:focus, 
+    .stSelectbox > div > div > div:focus,
+    .stNumberInput > div > div > input:focus {
+        border-color: #16A34A !important;
+        border-width: 3px !important;
+        box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.1) !important;
+        outline: none !important;
+    }
+    
+    /* Input hover state */
+    .stTextInput > div > div > input:hover, 
+    .stTextArea > div > div > textarea:hover {
+        border-color: #16A34A !important;
+    }
+    
+    /* Labels */
+    .stTextInput label, .stTextArea label, .stSelectbox label, .stRadio label {
+        color: #374151 !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
+        margin-bottom: 8px !important;
+        display: block !important;
+    }
+    
+    /* === BUTTONS === */
     .stButton > button[kind="primary"] {
-        background-color: #16A34A !important;
+        background: linear-gradient(135deg, #16A34A 0%, #15803D 100%) !important;
         color: white !important;
         border: none !important;
         border-radius: 8px !important;
-        font-weight: 600 !important;
+        font-weight: 700 !important;
+        font-size: 15px !important;
+        padding: 14px 28px !important;
+        box-shadow: 0 4px 6px rgba(22, 163, 74, 0.2) !important;
+        transition: all 0.2s !important;
+    }
+    .stButton > button[kind="primary"]:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 12px rgba(22, 163, 74, 0.3) !important;
     }
     
-    /* Metrics */
+    .stButton > button[kind="secondary"] {
+        background-color: white !important;
+        color: #16A34A !important;
+        border: 2px solid #16A34A !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        padding: 12px 24px !important;
+        transition: all 0.2s !important;
+    }
+    .stButton > button[kind="secondary"]:hover {
+        background-color: #F0FDF4 !important;
+        border-color: #15803D !important;
+    }
+    
+    /* === METRICS === */
     .metric-card {
         background: white;
-        border: 1px solid #E2E8F0;
+        border: 2px solid #E2E8F0;
         border-radius: 12px;
         padding: 24px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+        transition: all 0.2s;
     }
-    .metric-label { font-size: 13px; color: #64748B; margin-bottom: 8px; }
-    .metric-value { font-size: 32px; font-weight: 700; color: #0F172A; }
-    .metric-trend { font-size: 12px; color: #16A34A; margin-top: 4px; }
+    .metric-card:hover {
+        border-color: #16A34A;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+        transform: translateY(-2px);
+    }
+    .metric-label { font-size: 13px; color: #64748B; margin-bottom: 8px; font-weight: 600; }
+    .metric-value { font-size: 32px; font-weight: 800; color: #0F172A; }
+    .metric-trend { font-size: 12px; color: #16A34A; margin-top: 4px; font-weight: 600; }
     
-    /* Chat styling */
+    /* === SECTION HEADERS === */
+    h1, h2, h3 {
+        color: #0F172A !important;
+        font-weight: 700 !important;
+    }
+    
+    /* === RADIO BUTTONS === */
+    .stRadio > div {
+        background: white;
+        border: 2px solid #E2E8F0;
+        border-radius: 8px;
+        padding: 12px;
+    }
+    
+    /* === CHAT MESSAGES === */
     .chat-message {
         padding: 16px;
         border-radius: 12px;
         margin-bottom: 16px;
+        border: 2px solid #E2E8F0;
     }
     .user-message {
-        background: #16A34A;
-        color: white;
-        margin-left: 20%;
+        background: #F0FDF4;
+        border-color: #16A34A;
     }
     .ai-message {
-        background: #F1F5F9;
-        color: #0F172A;
-        margin-right: 20%;
+        background: #F8FAFC;
+        border-color: #CBD5E1;
+    }
+    
+    /* === QUICK ACTION BUTTONS === */
+    div[data-testid="stHorizontalBlock"] button[kind="secondary"] {
+        border: 2px solid #E2E8F0 !important;
+        background: white !important;
+        color: #374151 !important;
+        font-weight: 600 !important;
+        padding: 14px !important;
+        border-radius: 8px !important;
+        transition: all 0.2s !important;
+    }
+    div[data-testid="stHorizontalBlock"] button[kind="secondary"]:hover {
+        border-color: #16A34A !important;
+        background: #F0FDF4 !important;
+        color: #16A34A !important;
+        transform: translateY(-2px);
+    }
+    
+    /* === FORM CONTAINERS === */
+    div[data-testid="stForm"] {
+        border: 2px solid #E2E8F0 !important;
+        border-radius: 12px !important;
+        padding: 24px !important;
+        background: white !important;
+    }
+    
+    /* === SLIDER === */
+    .stSlider > div {
+        background: white;
+        border: 2px solid #E2E8F0;
+        border-radius: 8px;
+        padding: 12px;
     }
 </style>
 """, unsafe_allow_html=True)
