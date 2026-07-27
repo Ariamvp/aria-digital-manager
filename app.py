@@ -544,21 +544,10 @@ elif page == 'ai_chat':
     if st.session_state['chat_history']:
         for message in st.session_state['chat_history']:
             if message['role'] == 'user':
-                st.markdown(f"""
-                <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
-                    <div style="background:#16A34A; color:white; padding:12px 16px; border-radius:12px 12px 0 12px; max-width:70%; font-size:14px;">
-                        {message['content']}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown(f"""
-                <div style="display:flex; justify-content:flex-start; margin-bottom:16px;">
-                    <div style="background:#F1F5F9; color:#0F172A; padding:12px 16px; border-radius:12px 12px 12px 0; max-width:70%; font-size:14px;">
-                        {message['content']}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+
+                else:
+                st.markdown(f"**ARIA:**\n\n{message['content']}")
+                st.markdown("---")
     else:
         # Welcome message
         st.markdown("""
