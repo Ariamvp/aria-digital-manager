@@ -10,211 +10,105 @@ from crewai_tools import TavilySearchTool, ScrapeWebsiteTool
 from db import supabase, supabase_admin, get_user_settings, save_user_settings
 
 # ==========================================
-# 1. INITIALIZATION & THEME
+# 1. INITIALIZATION
 # ==========================================
 load_dotenv()
-st.set_page_config(page_title="A.R.I.A. Command Center", page_icon="🔥", layout="wide", initial_sidebar_state="expanded")
-
-# Session State for Navigation
-if 'page' not in st.session_state:
-    st.session_state['page'] = 'dashboard'
+st.set_page_config(page_title="A.R.I.A. Dashboard", page_icon="🔥", layout="wide")
 
 # ==========================================
-# 2. CUSTOM CSS - PROFESSIONAL DASHBOARD
+# 2. CUSTOM CSS
 # ==========================================
 st.markdown("""
 <style>
-    /* === GLOBAL === */
     .stApp { background-color: #F8FAFC; font-family: 'Inter', -apple-system, sans-serif; }
     
-    /* === SIDEBAR (DARK) === */
-    section[data-testid="stSidebar"] {
-        background-color: #0F172A !important;
-        border-right: 1px solid #1E293B;
-    }
-    section[data-testid="stSidebar"] .stMarkdown { color: #F8FAFC !important; }
-    section[data-testid="stSidebar"] label { color: #CBD5E1 !important; font-size: 13px; }
-    section[data-testid="stSidebar"] .stSelectbox label { color: #94A3B8 !important; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
-    
-    section[data-testid="stSidebar"] .stSelectbox > div > div > div {
-        background-color: #1E293B !important; color: #F8FAFC !important; border: 1px solid #334155 !important;
-    }
-    
-    /* === MAIN AREA === */
-    .main-header { 
-        display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;
-        margin-bottom: 32px; padding-bottom: 20px; border-bottom: 1px solid #E2E8F0; 
-    }
-    .page-title { font-size: 28px; font-weight: 700; color: #0F172A; margin: 0; }
-    .page-subtitle { font-size: 15px; color: #64748B; margin-top: 8px; }
-    
-    /* === CARDS === */
-    .dashboard-card {
-        background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; 
-        padding: 28px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-    }
-    .card-header {
-        display: flex; align-items: center; justify-content: space-between; 
-        margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #F1F5F9;
-        flex-wrap: wrap; gap: 12px;
-    }
-    .card-title { font-size: 18px; font-weight: 700; color: #0F172A; display: flex; align-items: center; gap: 12px; }
-    .card-icon { 
-        width: 36px; height: 36px; background: #F0FDF4; border-radius: 8px; 
-        display: flex; align-items: center; justify-content: center; font-size: 18px;
-    }
-    .card-badge { font-size: 12px; color: #16A34A; font-weight: 600; display: flex; align-items: center; gap: 6px; }
-    
-    /* === FORMS === */
-    .stTextInput > div > div > input, .stTextArea > div > div > textarea, .stSelectbox > div > div > div {
-        background-color: #FFFFFF !important; color: #0F172A !important; 
-        border: 1px solid #E2E8F0 !important; border-radius: 8px !important;
-    }
-    .stTextInput > div > div > input:focus, .stTextArea > div > div > textarea:focus {
-        border-color: #16A34A !important; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1) !important;
-    }
-    .stTextInput label, .stTextArea label, .stSelectbox label {
-        color: #374151 !important; font-weight: 600 !important; font-size: 14px !important;
-    }
-    
-    /* === BUTTONS (GREEN) === */
-    .stButton > button[kind="primary"] {
-        background-color: #16A34A !important; color: #FFFFFF !important; 
-        border: none !important; border-radius: 8px !important; font-weight: 600 !important;
-        padding: 10px 24px !important; transition: all 0.2s !important;
-    }
-    .stButton > button[kind="primary"]:hover {
-        background-color: #15803D !important; transform: translateY(-1px) !important;
-        box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3) !important;
-    }
-    .stButton > button[kind="secondary"] {
-        background-color: transparent !important; color: #64748B !important; 
-        border: 1px solid #E2E8F0 !important; border-radius: 8px !important;
-    }
-    
-    /* === METRICS === */
-    .metric-card {
-        background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; 
-        padding: 20px; text-align: left;
-    }
-    .metric-label { font-size: 13px; color: #64748B; font-weight: 500; margin-bottom: 8px; }
-    .metric-value { font-size: 28px; font-weight: 700; color: #0F172A; }
-    .metric-trend { font-size: 12px; color: #16A34A; font-weight: 600; margin-top: 4px; }
-    
     /* Hide Streamlit defaults */
-    #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
+    #MainMenu {visibility: hidden;} 
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
     
-    .sidebar-section { 
-        color: #16A34A !important; font-size: 11px; font-weight: 700; 
-        letter-spacing: 1px; text-transform: uppercase; margin-top: 24px; margin-bottom: 8px; 
+    /* Tabs styling */
+    .stTabs [data-baseweb="tab-list"] { 
+        gap: 8px; 
+        background-color: transparent;
+        padding: 0;
     }
-
-    /* ======================================== */
-    /* === MOBILE & TABLET RESPONSIVE === */
-    /* ======================================== */
-    
-    /* Tablet (max 1024px) */
-    @media (max-width: 1024px) {
-        .page-title { font-size: 24px; }
-        .metric-value { font-size: 24px; }
-        .dashboard-card { padding: 20px; }
+    .stTabs [data-baseweb="tab"] { 
+        background-color: white;
+        border-radius: 8px;
+        padding: 12px 24px;
+        font-weight: 600;
+        color: #64748B;
+        border: 1px solid #E2E8F0;
     }
-    
-    /* Mobile (max 768px) */
-    @media (max-width: 768px) {
-        .main-header { flex-direction: column; align-items: flex-start; }
-        .page-title { font-size: 22px; }
-        .page-subtitle { font-size: 13px; }
-        .dashboard-card { padding: 16px; margin-bottom: 16px; }
-        .card-header { flex-direction: column; align-items: flex-start; }
-        .card-title { font-size: 16px; }
-        .card-badge { font-size: 11px; }
-        .metric-value { font-size: 22px; }
-        .metric-label { font-size: 12px; }
-        .metric-trend { font-size: 11px; }
-        
-        /* Stack sidebar buttons better on mobile */
-        section[data-testid="stSidebar"] { width: 280px !important; }
+    .stTabs [aria-selected="true"] { 
+        background-color: #16A34A;
+        color: white;
+        border-color: #16A34A;
     }
     
-    /* Small Mobile (max 480px) */
-    @media (max-width: 480px) {
-        .page-title { font-size: 20px; }
-        .dashboard-card { padding: 12px; border-radius: 8px; }
-        .card-icon { width: 32px; height: 32px; font-size: 16px; }
-        .metric-value { font-size: 20px; }
-        
-        /* Make Streamlit columns stack on mobile */
-        div[data-testid="column"] {
-            padding: 4px !important;
-        }
+    /* Cards */
+    .dashboard-card {
+        background: white;
+        border: 1px solid #E2E8F0;
+        border-radius: 12px;
+        padding: 28px;
+        margin-bottom: 24px;
     }
+    
+    /* Buttons */
+    .stButton > button[kind="primary"] {
+        background-color: #16A34A !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Metrics */
+    .metric-card {
+        background: white;
+        border: 1px solid #E2E8F0;
+        border-radius: 12px;
+        padding: 24px;
+    }
+    .metric-label { font-size: 13px; color: #64748B; margin-bottom: 8px; }
+    .metric-value { font-size: 32px; font-weight: 700; color: #0F172A; }
+    .metric-trend { font-size: 12px; color: #16A34A; margin-top: 4px; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-
-# ==========================================
-
-
-# ==========================================
-# 3. MOBILE MENU TOGGLE
-# ==========================================
-
-# Initialize mobile sidebar state
-if 'show_sidebar' not in st.session_state:
-    st.session_state['show_sidebar'] = True
-
-# Mobile top bar with hamburger menu
-mobile_col1, mobile_col2, mobile_col3 = st.columns([1, 10, 1])
-with mobile_col1:
-    if st.button("☰", key="mobile_menu_btn", use_container_width=True, help="Toggle menu"):
-        st.session_state['show_sidebar'] = not st.session_state['show_sidebar']
-        st.rerun()
-
-with mobile_col2:
-    st.markdown("<h2 style='margin-top:8px; margin-bottom:0; font-size:20px; color:#0F172A;'>A.R.I.A. Command Center</h2>", unsafe_allow_html=True)
-
-with mobile_col3:
-    st.markdown("")  # Spacer
-
-st.markdown("---")
-
-# ==========================================
-# 4. AUTHENTICATION
+# 3. AUTHENTICATION
 # ==========================================
 def login_page():
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown('<div style="text-align:center; margin-top: 100px;">', unsafe_allow_html=True)
-        st.markdown('<div style="font-size: 48px; margin-bottom: 10px;">🔥</div>', unsafe_allow_html=True)
-        st.title("A.R.I.A. Command Center")
-        st.markdown('<p style="color: #64748B; margin-bottom: 32px;">Autonomous Revenue & Intelligence Agent</p>', unsafe_allow_html=True)
-        
-        tab_login, tab_signup = st.tabs(["Login", "Sign Up"])
-        
-        with tab_login:
-            email = st.text_input("Email", key="login_email")
-            password = st.text_input("Password", type="password", key="login_password")
-            if st.button("Login", type="primary", use_container_width=True):
-                try:
-                    res = supabase.auth.sign_in_with_password({"email": email, "password": password})
-                    st.session_state['user'] = res.user
-                    st.session_state['session'] = res.session
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Login failed: {str(e)}")
-        
-        with tab_signup:
-            name = st.text_input("Full Name", key="signup_name")
-            email = st.text_input("Email", key="signup_email")
-            password = st.text_input("Password (min 6 chars)", type="password", key="signup_password")
-            if st.button("Create Account", type="primary", use_container_width=True):
-                try:
-                    res = supabase.auth.sign_up({"email": email, "password": password, "options": {"data": {"full_name": name}}})
-                    st.success("Account created! Check your email.")
-                except Exception as e:
-                    st.error(f"Signup failed: {str(e)}")
+    st.title("🔥 Welcome to A.R.I.A.")
+    st.markdown("Your Autonomous Revenue & Intelligence Agent.")
+    
+    tab_login, tab_signup = st.tabs(["Login", "Sign Up"])
+    
+    with tab_login:
+        email = st.text_input("Email", key="login_email")
+        password = st.text_input("Password", type="password", key="login_password")
+        if st.button("Login", type="primary", use_container_width=True):
+            try:
+                res = supabase.auth.sign_in_with_password({"email": email, "password": password})
+                st.session_state['user'] = res.user
+                st.session_state['session'] = res.session
+                st.rerun()
+            except Exception as e:
+                st.error(f"Login failed: {str(e)}")
+    
+    with tab_signup:
+        name = st.text_input("Full Name", key="signup_name")
+        email = st.text_input("Email", key="signup_email")
+        password = st.text_input("Password (min 6 chars)", type="password", key="signup_password")
+        if st.button("Create Account", type="primary", use_container_width=True):
+            try:
+                res = supabase.auth.sign_up({"email": email, "password": password, "options": {"data": {"full_name": name}}})
+                st.success("Account created! Check your email.")
+            except Exception as e:
+                st.error(f"Signup failed: {str(e)}")
 
 def check_trial(user):
     try:
@@ -237,7 +131,7 @@ def get_user_role(user_id):
     except: return 'user'
 
 # ==========================================
-# 5. CREW DEFINITIONS
+# 4. CREW DEFINITIONS
 # ==========================================
 @st.cache_resource
 def create_negotiation_crew():
@@ -293,7 +187,7 @@ def create_response_crew():
         Generate TWO things:
         === PART 1: PROPERTY PROFILE ===
         # 🏨 PROPERTY PROFILE: {business_name}
-        ## 📍 Location, 🛏️ Rooms, 💰 Rates, 🍽️ Meals, ✨ Amenities, 📸 Photos, 🌟 Offers, 🗺️ Nearby
+        ## 📍 Location, ️ Rooms, 💰 Rates, 🍽️ Meals, ✨ Amenities, 📸 Photos, 🌟 Offers, 🗺️ Nearby
         === PART 2: EMAIL ===
         Write short email (<100 words):
         1. Extract sender name. If blank, use "Valued Partner".
@@ -342,14 +236,8 @@ def parse_json_output(raw_output):
     except:
         return {"subject": "Error", "body": raw_output}
 
-# Initialize chat history
-if 'chat_messages' not in st.session_state:
-    st.session_state['chat_messages'] = [
-        {"role": "assistant", "content": "👋 Hi! I'm ARIA. How can I help you today?"}
-    ]
-
 # ==========================================
-# 6. MAIN APP LOGIC
+# 5. MAIN APP LOGIC
 # ==========================================
 if 'user' not in st.session_state:
     login_page()
@@ -363,90 +251,34 @@ user_settings = get_user_settings(st.session_state['user'].id) or {}
 user_role = get_user_role(st.session_state['user'].id)
 user_email = st.session_state['user'].email
 
-# ==========================================
-# 7. SIDEBAR NAVIGATION (WITH MOBILE TOGGLE)
-# ==========================================
+# Top bar with user info and logout
+col1, col2 = st.columns([6, 1])
+with col1:
+    st.markdown(f"<h2 style='margin:0; padding:20px 0;'> A.R.I.A. Command Center</h2>", unsafe_allow_html=True)
+with col2:
+    if st.button("🚪 Logout", use_container_width=True):
+        supabase.auth.sign_out()
+        st.session_state.clear()
+        st.rerun()
 
-# Only show sidebar if toggled on (for mobile)
-if st.session_state.get('show_sidebar', True):
-    with st.sidebar:
-        # Close button for mobile
-        col_close1, col_close2 = st.columns([4, 1])
-        with col_close2:
-            if st.button("✕", key="close_sidebar", help="Close menu"):
-                st.session_state['show_sidebar'] = False
-                st.rerun()
-        
-        # Brand
-        st.markdown('<div style="display:flex; align-items:center; gap:12px; padding:10px 0 24px; border-bottom:1px solid #1E293B; margin-bottom:24px;">', unsafe_allow_html=True)
-        st.markdown('<div style="font-size:24px;">🔥</div>', unsafe_allow_html=True)
-        st.markdown('<div><div style="font-size:18px; font-weight:700; color:#F8FAFC;">A.R.I.A</div><div style="font-size:10px; color:#16A34A; font-weight:600; letter-spacing:1px;">COMMAND CENTER</div></div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Navigation
-        st.markdown('<div class="sidebar-section">Dashboard</div>', unsafe_allow_html=True)
-        if st.button("🏠 Dashboard", use_container_width=True, type="primary" if st.session_state['page'] == 'dashboard' else "secondary"):
-            st.session_state['page'] = 'dashboard'; st.rerun()
-        
-        st.markdown('<div class="sidebar-section">Business</div>', unsafe_allow_html=True)
-        if st.button("🏢 Business Profile", use_container_width=True, type="primary" if st.session_state['page'] == 'business' else "secondary"):
-            st.session_state['page'] = 'business'; st.rerun()
-        if st.button(" Team Members", use_container_width=True, type="primary" if st.session_state['page'] == 'team' else "secondary"):
-            st.session_state['page'] = 'team'; st.rerun()
-        
-        st.markdown('<div class="sidebar-section">AI Tools</div>', unsafe_allow_html=True)
-        if st.button("💬 AI Chat", use_container_width=True, type="primary" if st.session_state['page'] == 'ai_chat' else "secondary"):
-            st.session_state['page'] = 'ai_chat'; st.rerun()
-        if st.button("🤝 Negotiator", use_container_width=True, type="primary" if st.session_state['page'] == 'vendor' else "secondary"):
-            st.session_state['page'] = 'vendor'; st.rerun()
-        if st.button("🎨 Content Studio", use_container_width=True, type="primary" if st.session_state['page'] == 'content' else "secondary"):
-            st.session_state['page'] = 'content'; st.rerun()
-        if st.button("✉️ Response Writer", use_container_width=True, type="primary" if st.session_state['page'] == 'response' else "secondary"):
-            st.session_state['page'] = 'response'; st.rerun()
-        if st.button(" Lead Finder", use_container_width=True, type="primary" if st.session_state['page'] == 'leadgen' else "secondary"):
-            st.session_state['page'] = 'leadgen'; st.rerun()
-        if st.button("📱 WhatsApp Studio", use_container_width=True, type="primary" if st.session_state['page'] == 'whatsapp' else "secondary"):
-            st.session_state['page'] = 'whatsapp'; st.rerun()
-        if st.button("⭐ Review Responses", use_container_width=True, type="primary" if st.session_state['page'] == 'review' else "secondary"):
-            st.session_state['page'] = 'review'; st.rerun()
-        
-        st.markdown('<div class="sidebar-section">Integrations</div>', unsafe_allow_html=True)
-        if st.button("🔑 API Keys", use_container_width=True, type="primary" if st.session_state['page'] == 'api' else "secondary"):
-            st.session_state['page'] = 'api'; st.rerun()
-        
-        st.markdown('<div class="sidebar-section">Help</div>', unsafe_allow_html=True)
-        if st.button("📖 User Manual", use_container_width=True, type="primary" if st.session_state['page'] == 'manual' else "secondary"):
-            st.session_state['page'] = 'manual'; st.rerun()
-        
-        st.divider()
-        
-        # User Profile
-        st.markdown(f'<div style="display:flex; align-items:center; gap:12px; padding:12px; background:#1E293B; border-radius:8px; margin-bottom:12px;">', unsafe_allow_html=True)
-        st.markdown(f'<div style="width:36px; height:36px; background:#16A34A; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; color:white;">{user_email[0].upper()}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div><div style="font-size:13px; font-weight:600; color:#F8FAFC;">{user_email.split("@")[0]}</div><div style="font-size:11px; color:#16A34A;">{"Admin" if user_role == "admin" else "Free Trial"}</div></div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        if st.button("🚪 Logout", use_container_width=True, type="secondary"):
-            supabase.auth.sign_out()
-            st.session_state.clear()
-            st.rerun()
+st.markdown("---")
 
-# ==========================================
-# 8. PAGE ROUTER
-# ==========================================
-page = st.session_state['page']
+# Tab-based navigation
+tabs = st.tabs([
+    "📊 Dashboard",
+    "🏢 Business Profile",
+    " Lead Finder",
+    "️ Response Writer",
+    " Content Studio",
+    "⭐ Review Responses",
+    "📱 WhatsApp Studio",
+    "🤝 Negotiator"
+])
 
-# Helper for Page Header
-def page_header(title, subtitle, breadcrumb=""):
-    st.markdown(f'<div class="main-header">', unsafe_allow_html=True)
-    st.markdown(f'<div><h1 class="page-title">{title}</h1><p class="page-subtitle">{subtitle}</p></div>', unsafe_allow_html=True)
-    if breadcrumb:
-        st.markdown(f'<div style="font-size:13px; color:#64748B;">{breadcrumb}</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# --- DASHBOARD ---
-if page == 'dashboard':
-    page_header("Dashboard", "Welcome back! Here's what's happening with your business today.", "Home › Dashboard")
+# TAB 1: DASHBOARD
+with tabs[0]:
+    st.header("Dashboard")
+    st.markdown("Welcome back! Here's what's happening with your business today.")
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -458,14 +290,12 @@ if page == 'dashboard':
     with col4:
         st.markdown('<div class="metric-card"><div class="metric-label">Cost Savings</div><div class="metric-value">₹18,400</div><div class="metric-trend">↑ 15% this month</div></div>', unsafe_allow_html=True)
     
-    st.markdown('<div class="dashboard-card" style="margin-top:24px;"><h3 style="margin:0 0 16px 0; color:#0F172A;">Recent Activity</h3><p style="color:#64748B;">Your AI agents are working autonomously. Check the modules below to see drafts and approvals.</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="dashboard-card" style="margin-top:24px;"><h3>Recent Activity</h3><p style="color:#64748B;">Your AI agents are working autonomously. Check the modules below to see drafts and approvals.</p></div>', unsafe_allow_html=True)
 
-# --- BUSINESS PROFILE ---
-elif page == 'business':
-    page_header("Business Profile", "Configure your business details to personalize all AI outputs.", "Home › Business › Business Profile")
-    
-    st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
-    st.markdown('<div class="card-header"><div class="card-title"><div class="card-icon"></div>Business Information</div><div class="card-badge">🔒 Used across all AI tools</div></div>', unsafe_allow_html=True)
+# TAB 2: BUSINESS PROFILE
+with tabs[1]:
+    st.header("Business Profile")
+    st.markdown("Configure your business details to personalize all AI outputs.")
     
     with st.form("business_form"):
         col1, col2 = st.columns(2)
@@ -477,9 +307,7 @@ elif page == 'business':
             contact_info = st.text_input("Contact Info (Name | Phone | Email) *", value=user_settings.get('contact_info', ''))
             biz_pitch = st.text_area("Core Pitch *", height=100, value=user_settings.get('business_pitch', ''))
         
-        st.markdown('</div><div class="dashboard-card" style="margin-top:24px;">', unsafe_allow_html=True)
-        st.markdown('<div class="card-header"><div class="card-title"><div class="card-icon">🔑</div>Integration Credentials</div><div class="card-badge">️ Encrypted and secure</div></div>', unsafe_allow_html=True)
-        
+        st.subheader("🔐 Integration Credentials")
         col3, col4 = st.columns(2)
         with col3:
             gmail_pw = st.text_input("Gmail App Password", type="password", value=user_settings.get('gmail_app_password', ''))
@@ -487,7 +315,7 @@ elif page == 'business':
         with col4:
             tg_chat = st.text_input("Telegram Chat ID", value=user_settings.get('telegram_chat_id', ''))
         
-        if st.form_submit_button("💾 Save Settings", type="primary"):
+        if st.form_submit_button("💾 Save Settings", type="primary", use_container_width=True):
             save_user_settings(st.session_state['user'].id, {
                 "business_name": biz_name, "industry": industry, "location": location,
                 "contact_info": contact_info, "business_pitch": biz_pitch,
@@ -496,14 +324,104 @@ elif page == 'business':
             })
             st.success("✅ Settings saved successfully!")
             st.rerun()
-        
-        st.markdown('<div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:8px; padding:12px 16px; margin-top:20px; font-size:13px; color:#166534; display:flex; align-items:center; gap:8px;"><span>ℹ️</span> These credentials enable A.R.I.A to connect with your platforms and perform automated tasks.</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
 
-# --- AI TOOLS ---
-elif page == 'vendor':
-    page_header("Negotiator", "Lower your business costs with data-driven negotiation emails.", "Home › AI Tools › Negotiator")
-    st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
+# TAB 3: LEAD FINDER
+with tabs[2]:
+    st.header("Lead Finder")
+    st.markdown("Find real businesses with verified emails in your target market.")
+    
+    if not user_settings.get('business_pitch'):
+        st.warning("⚠️ Complete Business Profile first!")
+    else:
+        with st.form("leadgen_form"):
+            col1, col2 = st.columns(2)
+            with col1: category = st.text_input("Target Category", value="boutique hotels")
+            with col2: location_search = st.text_input("Location", value=user_settings.get('location', ''))
+            num_leads = st.slider("Number of Leads", 3, 10, 5)
+            if st.form_submit_button("🔍 Find Leads", type="primary"):
+                with st.spinner("Searching..."):
+                    crew = create_prospect_finder_crew()
+                    result = crew.kickoff(inputs={"category": category, "location": location_search, "num_leads": num_leads})
+                    st.success("✅ Leads Found!")
+                    st.code(result.raw, language="json")
+
+# TAB 4: RESPONSE WRITER
+with tabs[3]:
+    st.header("Response Writer")
+    st.markdown("Generate professional property profiles and reply emails.")
+    
+    with st.form("response_form"):
+        incoming = st.text_area("Incoming Lead Request", height=100)
+        raw_details = st.text_area("Your Business Details", height=150, value=user_settings.get('business_pitch', ''))
+        if st.form_submit_button("✨ Generate Response", type="primary"):
+            with st.spinner("Crafting..."):
+                crew = create_response_crew()
+                result = crew.kickoff(inputs={"incoming_request": incoming, "raw_business_details": raw_details, "business_name": user_settings.get('business_name', 'Your Business'), "contact_info": user_settings.get('contact_info', '')})
+                st.success("✅ Generated!")
+                parts = result.raw.split("---EMAIL---")
+                st.markdown(parts[0])
+                if len(parts) > 1:
+                    st.divider()
+                    st.markdown(parts[1])
+
+# TAB 5: CONTENT STUDIO
+with tabs[4]:
+    st.header("Content Studio")
+    st.markdown("Turn one piece of content into a full week of marketing materials.")
+    
+    with st.form("content_form"):
+        source = st.text_area("Source Material", height=150)
+        audience = st.text_input("Target Audience")
+        if st.form_submit_button("🔄 Repurpose Content", type="primary"):
+            with st.spinner("Analyzing..."):
+                crew = create_repurposing_crew()
+                result = crew.kickoff(inputs={"source_content": source, "target_audience": audience})
+                parsed = parse_json_output(result.raw)
+                st.success("✅ Content Generated!")
+                st.markdown(parsed.get('blog', ''))
+
+# TAB 6: REVIEW RESPONSES
+with tabs[5]:
+    st.header("Review Responses")
+    st.markdown("Instantly generate empathetic, brand-safe responses to reviews.")
+    
+    with st.form("review_form"):
+        col1, col2 = st.columns(2)
+        with col1: reviewer = st.text_input("Reviewer Name")
+        with col2: sentiment = st.radio("Sentiment", ["Positive", "Negative", "Mixed"], horizontal=True)
+        review_text = st.text_area("Review Text", height=120)
+        if st.form_submit_button("✨ Generate Response", type="primary"):
+            with st.spinner("Writing..."):
+                crew = create_review_crew()
+                result = crew.kickoff(inputs={"reviewer_name": reviewer, "review_text": review_text, "sentiment": sentiment, "contact_info": user_settings.get('contact_info', '')})
+                st.success("✅ Response Generated!")
+                st.markdown(result.raw)
+
+# TAB 7: WHATSAPP STUDIO
+with tabs[6]:
+    st.header("WhatsApp Studio")
+    st.markdown("Create engaging WhatsApp broadcasts for your customer list.")
+    
+    if not user_settings.get('business_name'):
+        st.warning("️ Complete Business Profile first!")
+    else:
+        with st.form("whatsapp_form"):
+            col1, col2 = st.columns(2)
+            with col1: btype = st.selectbox("Broadcast Type", ["Special Offer", "Festival Greeting", "Welcome Back"])
+            with col2: audience = st.selectbox("Target Audience", ["All Customers", "VIP Customers", "New Customers"])
+            details = st.text_area("Offer Details", height=120)
+            if st.form_submit_button("✨ Generate Broadcast", type="primary"):
+                with st.spinner("Creating..."):
+                    crew = create_whatsapp_crew()
+                    result = crew.kickoff(inputs={"business_name": user_settings['business_name'], "broadcast_type": btype, "specific_details": details, "contact_info": user_settings.get('contact_info', '')})
+                    st.success("✅ Broadcast Generated!")
+                    st.code(result.raw, language="text")
+
+# TAB 8: NEGOTIATOR
+with tabs[7]:
+    st.header("Negotiator")
+    st.markdown("Lower your business costs with data-driven negotiation emails.")
+    
     if not user_settings.get('contact_info'):
         st.warning("⚠️ Complete Business Profile first!")
     else:
@@ -522,291 +440,3 @@ elif page == 'vendor':
                     parsed = parse_json_output(result.raw)
                     st.success("✅ Draft Generated!")
                     st.code(parsed.get('body', ''), language="text")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-elif page == 'content':
-    page_header("Content Studio", "Turn one piece of content into a full week of marketing materials.", "Home › AI Tools › Content Studio")
-    st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
-    with st.form("content_form"):
-        source = st.text_area("Source Material", height=150)
-        audience = st.text_input("Target Audience")
-        if st.form_submit_button("🔄 Repurpose Content", type="primary"):
-            with st.spinner("Analyzing..."):
-                crew = create_repurposing_crew()
-                result = crew.kickoff(inputs={"source_content": source, "target_audience": audience})
-                parsed = parse_json_output(result.raw)
-                st.success("✅ Content Generated!")
-                st.markdown(parsed.get('blog', ''))
-    st.markdown('</div>', unsafe_allow_html=True)
-
-elif page == 'leadgen':
-    page_header("Lead Finder", "Find real businesses with verified emails in your target market.", "Home › AI Tools › Lead Finder")
-    st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
-    if not user_settings.get('business_pitch'):
-        st.warning("⚠️ Complete Business Profile first!")
-    else:
-        with st.form("leadgen_form"):
-            col1, col2 = st.columns(2)
-            with col1: category = st.text_input("Target Category", value="boutique hotels")
-            with col2: location_search = st.text_input("Location", value=user_settings.get('location', ''))
-            num_leads = st.slider("Number of Leads", 3, 10, 5)
-            if st.form_submit_button("🔍 Find Leads", type="primary"):
-                with st.spinner("Searching..."):
-                    crew = create_prospect_finder_crew()
-                    result = crew.kickoff(inputs={"category": category, "location": location_search, "num_leads": num_leads})
-                    st.success("✅ Leads Found!")
-                    st.code(result.raw, language="json")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-elif page == 'response':
-    page_header("Response Writer", "Generate professional property profiles and reply emails.", "Home › AI Tools › Response Writer")
-    st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
-    with st.form("response_form"):
-        incoming = st.text_area("Incoming Lead Request", height=100)
-        raw_details = st.text_area("Your Business Details", height=150, value=user_settings.get('business_pitch', ''))
-        if st.form_submit_button("✨ Generate Response", type="primary"):
-            with st.spinner("Crafting..."):
-                crew = create_response_crew()
-                result = crew.kickoff(inputs={"incoming_request": incoming, "raw_business_details": raw_details, "business_name": user_settings.get('business_name', 'Your Business'), "contact_info": user_settings.get('contact_info', '')})
-                st.success("✅ Generated!")
-                parts = result.raw.split("---EMAIL---")
-                st.markdown(parts[0])
-                if len(parts) > 1:
-                    st.divider()
-                    st.markdown(parts[1])
-    st.markdown('</div>', unsafe_allow_html=True)
-
-elif page == 'whatsapp':
-    page_header("WhatsApp Studio", "Create engaging WhatsApp broadcasts for your customer list.", "Home › AI Tools › WhatsApp Studio")
-    st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
-    if not user_settings.get('business_name'):
-        st.warning("️ Complete Business Profile first!")
-    else:
-        with st.form("whatsapp_form"):
-            col1, col2 = st.columns(2)
-            with col1: btype = st.selectbox("Broadcast Type", ["Special Offer", "Festival Greeting", "Welcome Back"])
-            with col2: audience = st.selectbox("Target Audience", ["All Customers", "VIP Customers", "New Customers"])
-            details = st.text_area("Offer Details", height=120)
-            if st.form_submit_button("✨ Generate Broadcast", type="primary"):
-                with st.spinner("Creating..."):
-                    crew = create_whatsapp_crew()
-                    result = crew.kickoff(inputs={"business_name": user_settings['business_name'], "broadcast_type": btype, "specific_details": details, "contact_info": user_settings.get('contact_info', '')})
-                    st.success("✅ Broadcast Generated!")
-                    st.code(result.raw, language="text")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-elif page == 'review':
-    page_header("Review Responses", "Instantly generate empathetic, brand-safe responses to reviews.", "Home › AI Tools › Review Responses")
-    st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
-    with st.form("review_form"):
-        col1, col2 = st.columns(2)
-        with col1: reviewer = st.text_input("Reviewer Name")
-        with col2: sentiment = st.radio("Sentiment", ["Positive", "Negative", "Mixed"], horizontal=True)
-        review_text = st.text_area("Review Text", height=120)
-        if st.form_submit_button("✨ Generate Response", type="primary"):
-            with st.spinner("Writing..."):
-                crew = create_review_crew()
-                result = crew.kickoff(inputs={"reviewer_name": reviewer, "review_text": review_text, "sentiment": sentiment, "contact_info": user_settings.get('contact_info', '')})
-                st.success("✅ Response Generated!")
-                st.markdown(result.raw)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# --- AI CHAT ---
-elif page == 'ai_chat':
-    page_header("AI Chat", "Ask ARIA anything about your business. Get instant AI assistance.", "Home › AI Tools › AI Chat")
-    
-    if 'chat_messages' not in st.session_state:
-        st.session_state['chat_messages'] = [
-            {"role": "assistant", "content": "👋 Hi! I'm ARIA. How can I help you today?"}
-        ]
-    
-    for message in st.session_state['chat_messages']:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-    
-    st.markdown("### 💡 Quick Actions")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("🎉 Generate an Onam Campaign", use_container_width=True, type="secondary"):
-            st.session_state['chat_messages'].append({"role": "user", "content": "Generate an Onam Campaign"})
-            response = f"""
-**🎉 Onam Campaign for {user_settings.get('business_name', 'Your Business')}**
-
-Here's a complete Onam campaign strategy:
-
-**1. WhatsApp Broadcast:**
-"🌸 Happy Onam! 
-
-Celebrate this festival with special offers from {user_settings.get('business_name', 'our business')}!
-
-🎁 **Special Onam Discount:** 20% off on all services
-🍽️ **Festival Feast:** Traditional Onam sadhya available
-🏨 **Stay & Celebrate:** Book 2 nights, get 1 free
-
-Valid till September 15th. 
-
-Reply BOOK to reserve your spot!
-
-Warm regards,
-{user_settings.get('contact_info', 'Team ARIA')}
-
-Reply STOP to unsubscribe"
-
-👉 Use **WhatsApp Studio** or **Content Studio** to generate these in detail!
-"""
-            st.session_state['chat_messages'].append({"role": "assistant", "content": response})
-            st.rerun()
-        
-        if st.button("🏨 Find hotels in Kochi", use_container_width=True, type="secondary"):
-            st.session_state['chat_messages'].append({"role": "user", "content": "Find hotels in Kochi"})
-            response = """
-**🏨 Finding Hotels in Kochi**
-
-Use the **Lead Finder** module for a comprehensive search with verified emails.
-
-**What you get:**
-- ✅ Verified business emails
-- ✅ Contact person details
-- ✅ Company information
-
-👉 Click **"Lead Finder" in the sidebar** to run a full search!
-"""
-            st.session_state['chat_messages'].append({"role": "assistant", "content": response})
-            st.rerun()
-    
-    with col2:
-        if st.button("⭐ Write reply to Google review", use_container_width=True, type="secondary"):
-            st.session_state['chat_messages'].append({"role": "user", "content": "Write reply to Google review"})
-            response = """
-**⭐ Google Review Response**
-
-I can help you craft a professional response to any Google review.
-
-**To generate a response, I need:**
-1. **Reviewer Name**
-2. **Review Text**
-3. **Sentiment** (Positive/Negative/Mixed)
-
-👉 **Click "Response Writer" in the sidebar** to generate a custom response.
-
-Or paste the review here and I'll draft it now!
-"""
-            st.session_state['chat_messages'].append({"role": "assistant", "content": response})
-            st.rerun()
-        
-        if st.button("📱 Create WhatsApp campaign", use_container_width=True, type="secondary"):
-            st.session_state['chat_messages'].append({"role": "user", "content": "Create WhatsApp campaign"})
-            response = f"""
-**📱 WhatsApp Campaign Creator**
-
-I'll help you create an engaging WhatsApp broadcast.
-
-**Campaign Types:**
-- 🎁 Special Offers & Discounts
-- 🎉 Festival Greetings
-- 👋 Welcome Back Messages
-
-**To create your campaign, I need:**
-1. **Campaign Type**
-2. **Offer Details**
-3. **Target Audience**
-
- **Click "WhatsApp Studio" in the sidebar** to generate a custom campaign.
-
-Or tell me your offer details and I'll draft it here!
-"""
-            st.session_state['chat_messages'].append({"role": "assistant", "content": response})
-            st.rerun()
-    
-    st.markdown("---")
-    if prompt := st.chat_input("Message ARIA..."):
-        st.session_state['chat_messages'].append({"role": "user", "content": prompt})
-        
-        msg_lower = prompt.lower()
-        
-        if 'onam' in msg_lower or 'campaign' in msg_lower:
-            response = f"""
-**🎉 Campaign Generation**
-
-I can help you create a complete campaign for **{user_settings.get('business_name', 'your business')}**!
-
-**Recommended Actions:**
-1. **WhatsApp Broadcast** - Direct customer outreach
-2. **Social Media Posts** - Instagram, Facebook, Twitter
-3. **Email Newsletter** - For your subscriber list
-
-**Tell me more:**
-- Campaign type (festival, offer, announcement)
-- Target audience
-- Key message or offer details
-"""
-        elif 'hotel' in msg_lower or 'lead' in msg_lower:
-            response = """
-**🎯 Lead Generation**
-
-Use the **Lead Finder** module for:
-- ✅ Verified business emails
-- ✅ Contact person details
-- ✅ Company information
-
-👉 Click **Lead Finder** in the sidebar to start!
-"""
-        elif 'review' in msg_lower or 'reply' in msg_lower:
-            response = """
-**⭐ Review Response**
-
-I'll help you craft the perfect response!
-
-**What I need:**
-1. Reviewer's name
-2. The review text
-3. Sentiment (positive/negative/mixed)
-
-👉 Use **Response Writer** for a guided experience!
-"""
-        elif 'whatsapp' in msg_lower:
-            response = f"""
-**📱 WhatsApp Broadcast**
-
-Let's create an engaging message!
-
-**Tell me:**
-- What's the offer or message?
-- Who's the target audience?
-- Any specific details?
-
-Or click **WhatsApp Studio** for a guided experience!
-"""
-        else:
-            response = f"""
-**🤖 ARIA Assistant**
-
-I'm here to help with your business automation!
-
-**I can assist with:**
--  Campaign Generation
-- 🎯 Lead Generation  
-- ⭐ Review Responses
-- 📱 WhatsApp Campaigns
-- 🎨 Content Creation
--  Vendor Negotiation
-
-**Your Business:** {user_settings.get('business_name', 'Not configured')}
-
-What would you like help with?
-"""
-        
-        st.session_state['chat_messages'].append({"role": "assistant", "content": response})
-        st.rerun()
-    
-    if len(st.session_state['chat_messages']) > 1:
-        if st.button("️ Clear Chat History", type="secondary"):
-            st.session_state['chat_messages'] = [{"role": "assistant", "content": "👋 Hi! I'm ARIA. How can I help you today?"}]
-            st.rerun()
-
-# --- COMING SOON PAGES ---
-elif page in ['team', 'api', 'manual']:
-    titles = {'team': 'Team Members', 'api': 'API Keys', 'manual': 'User Manual'}
-    page_header(titles.get(page, "Page"), "This module is coming soon.", f"Home › {titles.get(page, '')}")
-    st.markdown('<div class="dashboard-card" style="text-align:center; padding:60px;"><div style="font-size:48px; margin-bottom:16px;">🚧</div><h3 style="color:#0F172A;">Under Construction</h3><p style="color:#64748B;">We are building this feature. Check back soon!</p></div>', unsafe_allow_html=True)
