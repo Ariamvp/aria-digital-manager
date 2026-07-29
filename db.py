@@ -8,21 +8,21 @@ load_dotenv()
 # ==========================================
 # SUPABASE CONFIG
 # ==========================================
+# Match these to your exact Railway variable names
 url = os.getenv("SUPABASE_URL")
-key = os.getenv("SUPABASE_KEY")
+key = os.getenv("SUPABASE_ANON_KEY") 
 supabase: Client = create_client(url, key)
 
 # Admin client (for bypassing RLS)
-admin_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+admin_key = os.getenv("SUPABASE_SERVICE_KEY") 
 supabase_admin: Client = create_client(url, admin_key)
 
 # ==========================================
 # ENCRYPTION CONFIG
 # ==========================================
-# Paste the key you generated in Step 2 inside your .env file as ENCRYPTION_KEY
 ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
 if not ENCRYPTION_KEY:
-    raise ValueError("ENCRYPTION_KEY is missing from your .env file!")
+    raise ValueError("ENCRYPTION_KEY is missing from your environment variables!")
 
 fernet = Fernet(ENCRYPTION_KEY)
 
@@ -35,7 +35,7 @@ def decrypt_text(encrypted_text: str) -> str:
     try:
         return fernet.decrypt(encrypted_text.encode()).decode()
     except Exception:
-        # Fallback: If it fails, it means it was saved as plain text before encryption was added
+        # Fallback: If it fails, it was saved as plain text before encryption
         return encrypted_text 
 
 # ==========================================
@@ -83,3 +83,38 @@ def save_approval(user_id: str, approval_data: dict):
     except Exception as e:
         print(f"Error saving approval: {e}")
         return None
+
+# ==========================================
+# ANALYTICS & USAGE LOGGING
+# ==========================================
+def log_usage(user_id: str, module_name: str):
+    try:
+        supabase_admin.table("usage_logs").insert({
+            "user_id": user_id,
+            "module_name": module_name
+        }).execute()
+    except Exception as e:
+        print(f"Error logging usage: {e}")
+
+def get_usage_stats(user_id: str):
+    try:
+        # Get total generations (count all logs)
+        total_res = supabase_admin.table("usage_logs").select("id", count="exact").eq("user_id", user_id).execute()
+        total_generations = total_res.count if total_res.count else 0
+        
+        # Get leads found (count 'leadgen' logs)
+        leads_res = supabase_admin.table("usage_logs").select("id", count="exact").eq("user_id", user_id).eq("module_name", "leadgen").execute()
+        total_leads = leads_res.count if leads_res.count else 0
+        
+        # Get emails sent (count 'response' logs)
+        emails_res = supabase_admin.table("usage_logs").select("id", count="exact").eq("user_id", user_id).eq("module_name", "response").execute()
+        emails_sent = emails_res.count if emails_res.count else 0
+        
+        return {
+            "total_generations": total_generations,
+            "total_leads": total_leads,
+            "emails_sent": emails_sent
+        }
+    except Exception as e:
+        print(f"Error getting stats: {e}")
+        return {"total_generations": 0, "total_leads": 0, "emails_sent": 0}
