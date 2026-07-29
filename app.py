@@ -936,15 +936,56 @@ with tabs[5]:
     st.markdown("Turn one piece of content into a full week of marketing materials.")
     
     with st.form("content_form"):
-        source = st.text_area("Source Material", height=150)
-        audience = st.text_input("Target Audience")
+        st.markdown("### 📝 Source Material")
+        st.markdown("*Paste text, OR upload an image/video description*")
+        
+        # Option 1: Text input
+        source = st.text_area("Paste your content here", height=150, 
+                             placeholder="Paste your blog post, video transcript, social media caption, or describe your image/video here...")
+        
+        # Option 2: File upload (for images/videos)
+        uploaded_file = st.file_uploader("OR upload an image/video", type=['jpg', 'jpeg', 'png', 'mp4', 'mov'], 
+                                        help="Upload a photo or video, then describe what it shows in the text box above")
+        
+        if uploaded_file is not None:
+            st.success(f"✅ Uploaded: {uploaded_file.name}")
+            st.info("💡 **Tip:** Now describe what's in this image/video in the text box above, and A.R.I.A. will create content around it!")
+        
+        audience = st.text_input("Target Audience", placeholder="e.g., Couples and families looking for peaceful getaway")
+        
         if st.form_submit_button("🔄 Repurpose Content", type="primary"):
-            with st.spinner("Analyzing..."):
-                crew = create_repurposing_crew()
-                result = crew.kickoff(inputs={"source_content": source, "target_audience": audience})
-                parsed = parse_json_output(result.raw)
-                st.success("✅ Content Generated!")
-                st.markdown(parsed.get('blog', ''))
+            if not source and uploaded_file is None:
+                st.error("⚠️ Please either paste text content OR upload a file with a description!")
+            elif not source and uploaded_file is not None:
+                st.error("⚠️ You uploaded a file but didn't describe it. Please add a description in the text box above.")
+            else:
+                with st.spinner("Analyzing..."):
+                    # If they uploaded a file, prepend that info
+                    if uploaded_file is not None:
+                        full_source = f"[Image/Video: {uploaded_file.name}] {source}"
+                    else:
+                        full_source = source
+                    
+                    crew = create_repurposing_crew()
+                    result = crew.kickoff(inputs={"source_content": full_source, "target_audience": audience})
+                    parsed = parse_json_output(result.raw)
+                    st.success("✅ Content Generated!")
+                    
+                    # Display all content types
+                    st.subheader("📝 Blog Post")
+                    st.markdown(parsed.get('blog', 'Not generated'))
+                    
+                    st.subheader(" LinkedIn Post")
+                    st.markdown(parsed.get('linkedin', 'Not generated'))
+                    
+                    st.subheader("🐦 Twitter Thread")
+                    st.markdown(parsed.get('twitter', 'Not generated'))
+                    
+                    st.subheader("📸 Instagram Caption")
+                    st.markdown(parsed.get('instagram', 'Not generated'))
+                    
+                    st.subheader("📧 Newsletter Email")
+                    st.markdown(parsed.get('newsletter', 'Not generated'))
 
 # TAB 7: REVIEW RESPONSES
 with tabs[6]:
