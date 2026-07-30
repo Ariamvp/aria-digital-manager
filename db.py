@@ -59,26 +59,29 @@ def get_user_settings(user_id: str):
 
 def save_user_settings(user_id: str, settings_data: dict):
     try:
-        # 1. Encrypt sensitive fields before saving
+        # 1. Encrypt sensitive fields
         sensitive_fields = ['gmail_app_password', 'telegram_bot_token', 'telegram_chat_id']
         for field in sensitive_fields:
             if field in settings_data and settings_data[field]:
                 settings_data[field] = encrypt_text(settings_data[field])
         
-        # 2. Try to UPDATE existing record
-        res = supabase_admin.table("business_settings").update(
-            settings_data
-        ).eq("user_id", user_id).execute()
+        # 2. First, delete any existing record for this user
+        supabase_admin.table("business_settings").delete().eq("user_id", user_id).execute()
         
-        # 3. If no rows were updated, the record doesn't exist, so INSERT it
-        if not res.data:
-            res = supabase_admin.table("business_settings").insert(
-                {"user_id": user_id, **settings_data}
-            ).execute()
+        # 3. Then insert a fresh record
+        res = supabase_admin.table("business_settings").insert(
+            {"user_id": user_id, **settings_data}
+        ).execute()
+        
+        if res.data:
+            print(f"✅ Settings saved successfully for user {user_id}")
+            return res.data
+        else:
+            print(f"❌ Failed to save settings - no data returned")
+            return None
             
-        return res.data
     except Exception as e:
-        print(f"Error saving settings: {e}")
+        print(f"❌ Error saving settings: {str(e)}")
         return None
 
 def save_approval(user_id: str, approval_data: dict):
