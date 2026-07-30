@@ -801,13 +801,12 @@ with tabs[0]:
     
     st.markdown('<div class="dashboard-card" style="margin-top:24px;"><h3>Recent Activity</h3><p style="color:#64748B;">Your AI agents are working autonomously. Check the modules below to see drafts and approvals.</p></div>', unsafe_allow_html=True)
 
+
+
 # TAB 2: BUSINESS PROFILE
 with tabs[1]:
     st.header("Business Profile")
     st.markdown("Configure your business details to personalize all AI outputs.")
-    
-    # Show current user info for debugging
-    st.info(f"👤 Current User ID: `{st.session_state['user'].id}`")
     
     with st.form("business_form", clear_on_submit=False):
         col1, col2 = st.columns(2)
@@ -823,7 +822,7 @@ with tabs[1]:
         
         st.markdown("---")
         st.subheader("🔐 Integration Credentials")
-        st.markdown("*These will be encrypted before saving*")
+        st.markdown("*These will be encrypted before saving to the database*")
         
         col3, col4 = st.columns(2)
         with col3:
@@ -838,13 +837,11 @@ with tabs[1]:
                                    value=user_settings.get('telegram_chat_id', ''),
                                    help="Your Telegram chat ID for notifications")
         
-        # Submit button
         submitted = st.form_submit_button("💾 Save Settings", type="primary", use_container_width=True)
         
         if submitted:
             st.info("⏳ Saving... Please wait.")
             
-            # Prepare data to save
             settings_data = {
                 "business_name": biz_name,
                 "industry": industry,
@@ -856,59 +853,18 @@ with tabs[1]:
                 "telegram_chat_id": tg_chat
             }
             
-            # Debug: Print what we're trying to save
-            st.write("📋 **Data being saved:**")
-            st.json({k: ("[ENCRYPTED]" if k in ['gmail_app_password', 'telegram_bot_token'] else v) 
-                    for k, v in settings_data.items()})
-            
-            # Try to save
             try:
                 result = save_user_settings(st.session_state['user'].id, settings_data)
                 
                 if result:
-                    st.success("✅ Settings saved successfully!")
+                    st.success("✅ Settings saved successfully and encrypted!")
                     st.balloons()
-                    # Force a rerun to load the new settings
                     st.rerun()
                 else:
                     st.error("❌ Save failed - no data returned from database")
-                    st.warning("️ Check Railway logs for more details")
                     
             except Exception as e:
                 st.error(f"❌ Error saving settings: {str(e)}")
-                st.exception(e)
-
-    # TEMPORARY DEBUG BUTTON - Remove after testing
-    st.markdown("---")
-    st.subheader(" Database Test")
-    if st.button("🧪 Test Direct Database Insert"):
-        try:
-            from db import supabase_admin
-            
-            test_data = {
-                "user_id": st.session_state['user'].id,
-                "business_name": "Test Direct Insert",
-                "industry": "Hospitality",
-                "location": "Test Location",
-                "contact_info": "Test Contact",
-                "business_pitch": "Test Pitch",
-                "gmail_app_password": "test_encrypted_value"
-            }
-            
-            st.write("📋 Attempting direct insert...")
-            res = supabase_admin.table("business_settings").insert(test_data).execute()
-            
-            if res.data:
-                st.success("✅ Direct insert SUCCESSFUL!")
-                st.write("Response:", res.data)
-            else:
-                st.error("❌ Direct insert failed - no data returned")
-                st.write("Response:", res)
-                
-        except Exception as e:
-            st.error(f"❌ Exception: {str(e)}")
-            st.exception(e)
-
 # TAB 3: AI CHAT
 with tabs[2]:
     st.header("💬 AI Chat Assistant")
