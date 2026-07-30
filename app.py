@@ -7,13 +7,13 @@ import streamlit as st
 from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, Process, LLM
 from crewai_tools import TavilySearchTool, ScrapeWebsiteTool
-from db import supabase, supabase_admin, get_user_settings, save_user_settings
+from db import supabase, supabase_admin, get_user_settings, save_user_settings, log_usage, get_usage_stats
 
 # ==========================================
 # 1. INITIALIZATION
 # ==========================================
 load_dotenv()
-st.set_page_config(page_title="A.R.I.A. Dashboard", page_icon="", layout="wide")
+st.set_page_config(page_title="A.R.I.A. Dashboard", page_icon="🔥", layout="wide")
 
 # ==========================================
 # 2. CUSTOM CSS
@@ -277,7 +277,7 @@ def get_user_role(user_id):
     except: return 'user'
 
 # ==========================================
-# 4. CREW DEFINITIONS
+# 4. CREW DEFINITIONS (INDUSTRY-AGNOSTIC)
 # ==========================================
 @st.cache_resource
 def create_negotiation_crew():
@@ -297,17 +297,33 @@ def create_negotiation_crew():
 @st.cache_resource
 def create_repurposing_crew():
     llm = LLM(model="gpt-4o")
-    analyst = Agent(role="Content Strategist", goal="Analyze source material.", backstory="Master strategist.", llm=llm, verbose=False)
-    blog_writer = Agent(role="SEO Blog Writer", goal="Write SEO blog post.", backstory="Authoritative writer.", llm=llm, verbose=False)
-    social_manager = Agent(role="Social Media Manager", goal="Create viral posts.", backstory="Social expert.", llm=llm, verbose=False)
-    newsletter_writer = Agent(role="Email Expert", goal="Write newsletter.", backstory="High open-rate expert.", llm=llm, verbose=False)
-    qa = Agent(role="Content QA", goal="Format as JSON.", backstory="JSON formatter.", llm=llm, verbose=False)
+    analyst = Agent(role="Content Strategist", goal="Analyze source material and adapt for any industry", backstory="Master strategist who creates platform-specific content for hospitality, retail, services, FMCG, and more", llm=llm, verbose=False)
+    blog_writer = Agent(role="SEO Content Writer", goal="Write engaging, industry-appropriate content", backstory="Versatile writer who adapts tone for different business types", llm=llm, verbose=False)
+    social_manager = Agent(role="Social Media Expert", goal="Create viral, platform-optimized posts", backstory="Social media specialist for diverse industries", llm=llm, verbose=False)
+    newsletter_writer = Agent(role="Email Marketing Specialist", goal="Write high-converting newsletters", backstory="Email expert who knows what drives engagement", llm=llm, verbose=False)
+    qa = Agent(role="Content QA", goal="Ensure content is professional and on-brand", backstory="Quality checker for all content types", llm=llm, verbose=False)
+    
     return Crew(agents=[analyst, blog_writer, social_manager, newsletter_writer, qa], tasks=[
-        Task(description="Analyze: {source_content}. Target: {target_audience}.", expected_output="Analysis.", agent=analyst),
-        Task(description="Write 500-word SEO blog post.", expected_output="Blog.", agent=blog_writer),
-        Task(description="Write LinkedIn post, Twitter thread, IG caption.", expected_output="Social.", agent=social_manager),
-        Task(description="Write newsletter email.", expected_output="Newsletter.", agent=newsletter_writer),
-        Task(description='Format ALL into JSON: {"blog": "...", "linkedin": "...", "twitter": "...", "instagram": "...", "newsletter": "..."}', expected_output="JSON", agent=qa)
+        Task(description="""
+        Analyze this source content:
+        "{source_content}"
+        
+        Target Audience: {target_audience}
+        Industry Context: {industry}
+        
+        Create platform-specific content that:
+        1. Adapts tone to the industry (hospitality=warm, retail=professional, etc.)
+        2. Uses appropriate keywords for SEO
+        3. Includes relevant emojis for social media
+        4. Maintains brand consistency
+        
+        Output as JSON with these keys:
+        - blog: 500-word SEO article
+        - linkedin: Professional post (150 words)
+        - twitter: Thread (3-5 tweets)
+        - instagram: Caption with hashtags (100 words)
+        - newsletter: Email (200 words)
+        """, expected_output="JSON with blog, linkedin, twitter, instagram, newsletter", agent=analyst)
     ], process=Process.sequential, verbose=False)
 
 @st.cache_resource
@@ -325,40 +341,81 @@ def create_prospect_finder_crew():
 @st.cache_resource
 def create_response_crew():
     llm = LLM(model="gpt-4o")
-    writer = Agent(role="Hospitality Specialist", goal="Create Property Profile AND email.", backstory="Partnership expert.", llm=llm, verbose=False)
+    writer = Agent(role="Business Communication Specialist", goal="Create professional business profiles and inquiry responses for ANY industry", backstory="Expert at adapting communication style to different business types - hospitality, retail, services, FMCG, etc.", llm=llm, verbose=False)
     return Crew(agents=[writer], tasks=[
         Task(description="""
-        You received: {incoming_request}
-        Business details: {raw_business_details}
+        You received this inquiry: 
+        "{incoming_request}"
+        
+        Business details: 
+        "{raw_business_details}"
+        
+        Business Name: {business_name}
+        Industry: {industry}
+        
         Generate TWO things:
-        === PART 1: PROPERTY PROFILE ===
-        # 🏨 PROPERTY PROFILE: {business_name}
-        ## 📍 Location, ️ Rooms,  Rates, 🍽️ Meals,  Amenities, 📸 Photos,  Offers, 🗺️ Nearby
-        === PART 2: EMAIL ===
-        Write short email (<100 words):
-        1. Extract sender name. If blank, use "Valued Partner".
+        
+        === PART 1: BUSINESS PROFILE/PROPOSAL ===
+        Create a professional profile or proposal that includes:
+        - Overview of the business
+        - Products/Services offered
+        - Key features/benefits
+        - Pricing/packages (if applicable)
+        - Contact information
+        - Call to action
+        
+        IMPORTANT: Adapt the format based on the business type:
+        - For Hotels/Resorts: Include rooms, amenities, rates, location
+        - For Restaurants: Include menu highlights, cuisine type, ambiance
+        - For Retail: Include product categories, brands, special offers
+        - For Services: Include service packages, expertise, portfolio
+        - For FMCG: Include product range, distribution, pricing
+        
+        === PART 2: PROFESSIONAL EMAIL RESPONSE ===
+        Write a concise email (<150 words):
+        1. Extract sender name from inquiry. If blank, use "Valued Customer".
         2. Start "Dear [Name],"
-        3. Thank them for interest in {business_name}.
-        4. Say "Please find our detailed Property Profile above."
-        5. Sign off professionally using: {contact_info}
-        OUTPUT: Profile first, then "---EMAIL---" marker, then email.
-        """, expected_output="Profile + ---EMAIL--- + Email", agent=writer)
+        3. Thank them for their inquiry about {business_name}
+        4. Reference their specific question/need
+        5. Say "Please find our detailed information above."
+        6. Include a clear call-to-action
+        7. Sign off professionally using: {contact_info}
+        
+        OUTPUT FORMAT:
+        Profile/Proposal first, then "---EMAIL---" marker, then email.
+        """, expected_output="Profile/Proposal + ---EMAIL--- + Email", agent=writer)
     ], process=Process.sequential, verbose=False)
 
 @st.cache_resource
 def create_review_crew():
     llm = LLM(model="gpt-4o")
-    responder = Agent(role="Reputation Manager", goal="Write review responses.", backstory="Guest relations expert.", llm=llm, verbose=False)
+    responder = Agent(role="Customer Experience Specialist", goal="Write empathetic, industry-appropriate review responses", backstory="Expert in reputation management for hospitality, retail, restaurants, and service businesses", llm=llm, verbose=False)
     return Crew(agents=[responder], tasks=[
         Task(description="""
-        Respond to this {sentiment} review.
+        Respond to this {sentiment} review:
+        
         Reviewer: {reviewer_name}
         Review: "{review_text}"
+        
+        BUSINESS CONTEXT:
+        - Business Name: {business_name}
+        - Industry: {industry}
+        - Contact: {contact_info}
+        
         RULES:
-        - If POSITIVE: Thank warmly, mention specifics, invite back
-        - If NEGATIVE: Apologize sincerely, validate concern, offer offline resolution
-        - Keep under 150 words. Sign as: {contact_info}
-        """, expected_output="Professional response", agent=responder)
+        - If POSITIVE: Thank them warmly, mention specific details they praised, reference what makes your business special (based on industry), invite them back.
+        - If NEGATIVE: Apologize sincerely and specifically, validate their concern without being defensive, explain what you're doing to fix it, offer offline resolution.
+        - If MIXED: Thank them for positive feedback, address concerns professionally, show commitment to improvement.
+        
+        INDUSTRY-SPECIFIC TONE:
+        - Hospitality: Warm, welcoming, personal
+        - Restaurant: Enthusiastic about food, apologetic about service
+        - Retail: Professional, solution-oriented
+        - Services: Expert, reassuring
+        - FMCG: Quality-focused, customer-centric
+        
+        Keep under 150 words. Sign as: {contact_info}
+        """, expected_output="Professional review response", agent=responder)
     ], process=Process.sequential, verbose=False)
 
 @st.cache_resource
@@ -386,12 +443,9 @@ def parse_json_output(raw_output):
 # 5. AI CHAT ASSISTANT
 # ==========================================
 def get_ai_response(user_message, user_settings):
-    """Educational AI that helps users understand and use A.R.I.A."""
-    
     msg_lower = user_message.lower()
     business_name = user_settings.get('business_name', 'your business')
     
-    # Educational responses based on keywords
     if any(word in msg_lower for word in ['hello', 'hi', 'help', 'start', 'begin', 'welcome']):
         return f"""
 👋 **Welcome to A.R.I.A.!**
@@ -403,7 +457,7 @@ I'm your AI assistant, here to help you get the most out of the platform.
 - ✉️ Writing professional responses to leads
 - ⭐ Managing customer reviews
 - 🎨 Creating marketing content
--  Sending WhatsApp broadcasts
+- 📱 Sending WhatsApp broadcasts
 - 💰 Negotiating with vendors
 
 **Quick Start:**
@@ -413,317 +467,35 @@ I'm your AI assistant, here to help you get the most out of the platform.
 
 **What would you like to do first?**
 """
-
     elif any(word in msg_lower for word in ['lead', 'find', 'customer', 'client', 'prospect']):
-        return f"""
-🎯 **Lead Finder** - Your Business Development Tool
-
-**What it does:**
-- Scans the internet for businesses in your target area
-- Verifies email addresses automatically
-- Finds contact person details
-- Extracts company information
-
-**How to use:**
-1. Click the **"Lead Finder"** tab above
-2. Enter your target category (e.g., "boutique hotels", "restaurants")
-3. Enter location (e.g., "Kochi, Kerala")
-4. Choose number of leads (3-10)
-5. Click "🔍 Find Leads"
-
-**Example:**
-If you're looking for partnership opportunities, you could search for:
-- Category: "tour operators"
-- Location: "Alappuzha, Kerala"
-- Number: 5 leads
-
-The AI will find real businesses with verified emails you can contact!
-
-**Would you like me to guide you through using Lead Finder?**
-"""
-
+        return "🎯 **Lead Finder** - Your Business Development Tool\n\n**What it does:** Scans the internet for businesses in your target area, verifies emails, and finds contact details.\n\n**How to use:** Click the **Lead Finder** tab, enter your target category and location, and click 'Find Leads'."
     elif any(word in msg_lower for word in ['review', 'response', 'reply', 'feedback', 'rating']):
-        return f"""
-⭐ **Review Responses** - Protect Your Reputation
-
-**What it does:**
-- Reads customer reviews automatically
-- Drafts professional, empathetic responses
-- Matches your brand voice
-- Handles positive and negative reviews
-
-**How to use:**
-1. Click the **"Review Responses"** tab above
-2. Paste the review text
-3. Enter reviewer name
-4. Select sentiment (Positive/Negative/Mixed)
-5. Click "✨ Generate Response"
-
-**Example:**
-If a customer wrote: *"Great food but slow service"*
-
-The AI would generate:
-*"Dear [Name], thank you for your feedback! We're delighted you enjoyed our food. We sincerely apologize for the wait time and are working to improve our service speed. We'd love to welcome you back for a better experience. Warm regards, [Your Name]"*
-
-**Benefits:**
-- ✅ Saves time (responses in seconds)
-- ✅ Always professional
-- ✅ Brand-safe
-- ✅ Empathetic tone
-
-**Ready to try it?**
-"""
-
+        return "⭐ **Review Responses** - Protect Your Reputation\n\n**What it does:** Reads customer reviews and drafts professional, empathetic responses tailored to your industry.\n\n**How to use:** Click the **Review Responses** tab, paste the review, select sentiment, and generate."
     elif any(word in msg_lower for word in ['whatsapp', 'broadcast', 'message', 'campaign']):
-        return f"""
-📱 **WhatsApp Studio** - Engage Your Customers
-
-**What it does:**
-- Creates engaging WhatsApp broadcast messages
-- Uses emojis and formatting (*bold*, etc.)
-- Includes clear call-to-action
-- Adds unsubscribe option automatically
-
-**How to use:**
-1. Click the **"WhatsApp Studio"** tab above
-2. Select broadcast type:
-   - 🎁 Special Offer
-   - 🎉 Festival Greeting
-   - 👋 Welcome Back
-3. Enter offer details
-4. Choose target audience
-5. Click "✨ Generate Broadcast"
-
-**Example Output:**
-*"🌟 Weekend Special! 🌟
-
-Get 25% off on all bookings this weekend!
-
-✅ Valid: Sat-Sun only
-✅ Includes: Free breakfast
-✅ Book by: Friday 6pm
-
-Reply YES to book now!
-
-{business_name}
-Contact: {user_settings.get('contact_info', 'Your contact')}
-
-Reply STOP to unsubscribe"*
-
-**Best practices:**
-- Keep messages under 150 words
-- Use 1-2 emojis per line max
-- Include clear CTA
-- Always add unsubscribe option
-
-**Want to create a broadcast?**
-"""
-
+        return "📱 **WhatsApp Studio** - Engage Your Customers\n\n**What it does:** Creates engaging WhatsApp broadcast messages with emojis, formatting, and clear CTAs.\n\n**How to use:** Click the **WhatsApp Studio** tab, select broadcast type, enter details, and generate."
     elif any(word in msg_lower for word in ['content', 'social media', 'post', 'marketing', 'blog']):
-        return f"""
-🎨 **Content Studio** - Repurpose Your Content
-
-**What it does:**
-- Takes one piece of content (blog, video, post)
-- Creates a full week of marketing materials
-- Generates: blogs, social posts, newsletters
-- Optimizes for different platforms
-
-**How to use:**
-1. Click the **"Content Studio"** tab above
-2. Paste your source material (article, transcript, etc.)
-3. Enter target audience
-4. Click "🔄 Repurpose Content"
-
-**What you get:**
-- 📝 SEO blog post (500 words)
--  LinkedIn post
-- 🐦 Twitter thread
-- 📸 Instagram caption
--  Newsletter email
-
-**Example:**
-If you paste a product launch announcement, the AI will create:
-- A detailed blog post
-- Social media posts for each platform
-- An email newsletter
-- All tailored to each platform's style
-
-**Saves you 5+ hours of content creation!**
-
-**Ready to repurpose content?**
-"""
-
+        return "🎨 **Content Studio** - Repurpose Your Content\n\n**What it does:** Takes one piece of content and creates a full week of marketing materials (blogs, social posts, newsletters) adapted to your industry.\n\n**How to use:** Click the **Content Studio** tab, paste your source material, and generate."
     elif any(word in msg_lower for word in ['vendor', 'negotiate', 'cost', 'price', 'discount']):
-        return f"""
-💰 **Negotiator** - Reduce Your Business Costs
-
-**What it does:**
-- Researches competitor pricing
-- Develops negotiation strategy
-- Drafts professional negotiation emails
-- Helps you save money
-
-**How to use:**
-1. Click the **"Negotiator"** tab above
-2. Enter vendor name
-3. Enter current service type
-4. Enter monthly cost
-5. Enter contract end date
-6. Click "🚀 Generate Negotiation Email"
-
-**What happens:**
-1. AI researches the vendor and competitors
-2. Finds comparable pricing
-3. Develops negotiation strategy
-4. Drafts professional email with specific ask
-
-**Example:**
-If you pay $500/month for a service, the AI might:
-- Research 3 competitors
-- Find they charge $400-450
-- Draft an email asking for 10-15% reduction
-- Include specific competitor quotes
-
-**Average savings: ₹18,000/month!**
-
-**Want to negotiate with a vendor?**
-"""
-
+        return "💰 **Negotiator** - Reduce Your Business Costs\n\n**What it does:** Researches competitor pricing and drafts professional negotiation emails to help you save money.\n\n**How to use:** Click the **Negotiator** tab, enter vendor details and current cost, and generate."
     elif any(word in msg_lower for word in ['response', 'reply', 'lead', 'inquiry', 'customer']):
-        return f"""
-️ **Response Writer** - Convert Leads to Customers
-
-**What it does:**
-- Creates professional property profiles
-- Drafts personalized email responses
-- Matches your business tone
-- Includes all key information
-
-**How to use:**
-1. Click the **"Response Writer"** tab above
-2. Paste the incoming lead inquiry
-3. Enter your business details (or use saved profile)
-4. Click "✨ Generate Response"
-
-**What you get:**
-1. **Property Profile** with:
-   - 📍 Location
-   - 🛏️ Rooms & rates
-   - 🍽️ Meals & amenities
-   - 📸 Photos
-   - 🌟 Special offers
-   - ️ Nearby attractions
-
-2. **Professional Email** that:
-   - Addresses the lead by name
-   - Thanks them for interest
-   - Includes the property profile
-   - Has clear call-to-action
-
-**Example:**
-When a lead asks about a 3-night family package, the AI generates a complete response with pricing, amenities, and a warm, professional tone.
-
-**Ready to respond to a lead?**
-"""
-
+        return "✉️ **Response Writer** - Convert Leads to Customers\n\n**What it does:** Creates professional business profiles/proposals and drafts personalized email responses tailored to your industry.\n\n**How to use:** Click the **Response Writer** tab, paste the inquiry, and generate."
     elif any(word in msg_lower for word in ['profile', 'settings', 'business', 'configure', 'setup']):
-        return f"""
-🏢 **Business Profile** - Your Foundation
-
-**Why it's important:**
-All AI tools use your business profile to personalize outputs. Without it, responses are generic.
-
-**What to fill in:**
-1. **Business Name** - Your company name
-2. **Industry** - Hospitality, FMCG, etc.
-3. **Location** - Primary business location
-4. **Contact Info** - Name | Phone | Email
-5. **Core Pitch** - What you offer (e.g., "Travellers, family, couples")
-
-**Integration Credentials:**
-- **Gmail App Password** - To send emails
-- **Telegram Bot Token** - For approvals
-- **Telegram Chat ID** - Where to send drafts
-
-**How to set up:**
-1. Click the **"Business Profile"** tab above
-2. Fill in all fields marked with *
-3. Add integration credentials (optional but recommended)
-4. Click "💾 Save Settings"
-
-**Pro tip:** Complete this first for best AI results!
-
-**Need help with any specific field?**
-"""
-
+        return "🏢 **Business Profile** - Your Foundation\n\nAll AI tools use your business profile to personalize outputs. Click the **Business Profile** tab, fill in your details (especially Industry), and save."
     elif any(word in msg_lower for word in ['trial', 'pricing', 'cost', 'upgrade', 'payment']):
-        return f"""
-💳 **Pricing & Trial Information**
-
-**Your Current Status:**
-- ✅ 14-Day Free Trial Active
-- ✅ All 6 AI modules included
-- ✅ Unlimited access during trial
-
-**After Trial:**
-- **Professional Plan:** ₹2,999/month
-  - 500 AI generations/month
-  - All 6 modules
-  - Email support
-  
-- **Enterprise Plan:** ₹4,999/month
-  - Unlimited generations
-  - Priority support
-  - Team collaboration
-
-**What's included:**
-✅ Lead Finder
-✅ Response Writer
-✅ Review Responses
-✅ Content Studio
-✅ WhatsApp Studio
-✅ Negotiator
-✅ AI Chat Assistant
-
-**No credit card required for trial!**
-
-**Questions about features?**
-"""
-
+        return "💳 **Pricing & Trial Information**\n\n- ✅ 14-Day Free Trial Active\n- **Professional Plan:** ₹2,999/month (500 AI generations)\n- **Enterprise Plan:** ₹4,999/month (Unlimited)\n\nNo credit card required for trial!"
     else:
-        # Default educational response
         return f"""
 🤖 **I'm here to help!**
 
 I can guide you through using any of A.R.I.A.'s features.
 
-**What I can help with:**
-
-📚 **Learning the Platform:**
+**Try asking me:**
 - "How do I find new leads?"
 - "How do I respond to reviews?"
 - "How do I create content?"
 - "How do I send WhatsApp messages?"
 
-🎯 **Specific Tasks:**
-- "Help me find hotels in Kochi"
-- "Write a response to a negative review"
-- "Create an Onam campaign"
-- "Negotiate with my vendor"
-
- **Best Practices:**
-- "What's the best way to use Lead Finder?"
-- "How should I write WhatsApp broadcasts?"
-- "What makes a good review response?"
-
-**Try asking me:**
-- "How do I get started?"
-- "Show me how to find leads"
-- "Help me with reviews"
-- "What can you do?"
-
-**Or just tell me what you want to accomplish, and I'll guide you!**
+Or just tell me what you want to accomplish, and I'll guide you!
 """
 
 # ==========================================
@@ -741,44 +513,29 @@ user_settings = get_user_settings(st.session_state['user'].id) or {}
 user_role = get_user_role(st.session_state['user'].id)
 user_email = st.session_state['user'].email
 
-# Initialize chat history
 if 'chat_messages' not in st.session_state:
     st.session_state['chat_messages'] = [
-        {"role": "assistant", "content": f"""👋 **Welcome to A.R.I.A., {user_email.split('@')[0]}!**
-
-I'm your AI assistant. I can help you:
-- 🎯 Find new business leads
-- ✉️ Write professional responses
-- ⭐ Manage customer reviews
--  Create marketing content
-- 📱 Send WhatsApp broadcasts
-- 💰 Negotiate with vendors
-
-**What would you like to do first?**
-
-Or ask me anything about how to use the platform!"""}
+        {"role": "assistant", "content": f"""👋 **Welcome to A.R.I.A., {user_email.split('@')[0]}!**\n\nI'm your AI assistant. I can help you:\n- 🎯 Find new business leads\n- ✉️ Write professional responses\n- ⭐ Manage customer reviews\n- 🎨 Create marketing content\n- 📱 Send WhatsApp broadcasts\n- 💰 Negotiate with vendors\n\n**What would you like to do first?**"""}
     ]
 
-# Top bar with user info and logout
 col1, col2 = st.columns([6, 1])
 with col1:
-    st.markdown(f"<h2 style='margin:0; padding:20px 0;'> A.R.I.A. Command Center</h2>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='margin:0; padding:20px 0;'>🔥 A.R.I.A. Command Center</h2>", unsafe_allow_html=True)
 with col2:
-    if st.button(" Logout", use_container_width=True):
+    if st.button("🚪 Logout", use_container_width=True):
         supabase.auth.sign_out()
         st.session_state.clear()
         st.rerun()
 
 st.markdown("---")
 
-# Tab-based navigation (9 tabs including AI Chat)
 tabs = st.tabs([
-    " Dashboard",
+    "📊 Dashboard",
     "🏢 Business Profile",
     "💬 AI Chat",
-    " Lead Finder",
-    "️ Response Writer",
-    " Content Studio",
+    "🎯 Lead Finder",
+    "✉️ Response Writer",
+    "🎨 Content Studio",
     "⭐ Review Responses",
     "📱 WhatsApp Studio",
     "🤝 Negotiator"
@@ -789,19 +546,19 @@ with tabs[0]:
     st.header("Dashboard")
     st.markdown("Welcome back! Here's what's happening with your business today.")
     
+    stats = get_usage_stats(st.session_state['user'].id)
+    
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.markdown('<div class="metric-card"><div class="metric-label">Total Leads</div><div class="metric-value">247</div><div class="metric-trend">↑ 12% this week</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Total Leads</div><div class="metric-value">{stats["total_leads"]}</div><div class="metric-trend">↑ Tracked automatically</div></div>', unsafe_allow_html=True)
     with col2:
-        st.markdown('<div class="metric-card"><div class="metric-label">AI Generations</div><div class="metric-value">1,429</div><div class="metric-trend">↑ 24% this week</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-label">AI Generations</div><div class="metric-value">{stats["total_generations"]}</div><div class="metric-trend">↑ All modules combined</div></div>', unsafe_allow_html=True)
     with col3:
-        st.markdown('<div class="metric-card"><div class="metric-label">Emails Sent</div><div class="metric-value">89</div><div class="metric-trend">↑ 8% this week</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Emails Sent</div><div class="metric-value">{stats["emails_sent"]}</div><div class="metric-trend">↑ Tracked automatically</div></div>', unsafe_allow_html=True)
     with col4:
-        st.markdown('<div class="metric-card"><div class="metric-label">Cost Savings</div><div class="metric-value">₹18,400</div><div class="metric-trend">↑ 15% this month</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="metric-card"><div class="metric-label">Cost Savings</div><div class="metric-value">₹0</div><div class="metric-trend">Start using AI to save!</div></div>', unsafe_allow_html=True)
     
     st.markdown('<div class="dashboard-card" style="margin-top:24px;"><h3>Recent Activity</h3><p style="color:#64748B;">Your AI agents are working autonomously. Check the modules below to see drafts and approvals.</p></div>', unsafe_allow_html=True)
-
-
 
 # TAB 2: BUSINESS PROFILE
 with tabs[1]:
@@ -826,107 +583,76 @@ with tabs[1]:
         
         col3, col4 = st.columns(2)
         with col3:
-            gmail_pw = st.text_input("Gmail App Password", type="password", 
-                                    value=user_settings.get('gmail_app_password', ''),
-                                    help="Enter your Gmail App Password (not your regular password)")
-            tg_token = st.text_input("Telegram Bot Token", type="password",
-                                    value=user_settings.get('telegram_bot_token', ''),
-                                    help="Get this from @BotFather on Telegram")
+            gmail_pw = st.text_input("Gmail App Password", type="password", value=user_settings.get('gmail_app_password', ''), help="Enter your Gmail App Password")
+            tg_token = st.text_input("Telegram Bot Token", type="password", value=user_settings.get('telegram_bot_token', ''), help="Get this from @BotFather on Telegram")
         with col4:
-            tg_chat = st.text_input("Telegram Chat ID",
-                                   value=user_settings.get('telegram_chat_id', ''),
-                                   help="Your Telegram chat ID for notifications")
+            tg_chat = st.text_input("Telegram Chat ID", value=user_settings.get('telegram_chat_id', ''), help="Your Telegram chat ID for notifications")
         
         submitted = st.form_submit_button("💾 Save Settings", type="primary", use_container_width=True)
         
         if submitted:
             st.info("⏳ Saving... Please wait.")
-            
             settings_data = {
-                "business_name": biz_name,
-                "industry": industry,
-                "location": location,
-                "contact_info": contact_info,
-                "business_pitch": biz_pitch,
-                "gmail_app_password": gmail_pw,
-                "telegram_bot_token": tg_token,
-                "telegram_chat_id": tg_chat
+                "business_name": biz_name, "industry": industry, "location": location,
+                "contact_info": contact_info, "business_pitch": biz_pitch,
+                "gmail_app_password": gmail_pw, "telegram_bot_token": tg_token, "telegram_chat_id": tg_chat
             }
-            
             try:
                 result = save_user_settings(st.session_state['user'].id, settings_data)
-                
                 if result:
                     st.success("✅ Settings saved successfully and encrypted!")
                     st.balloons()
                     st.rerun()
                 else:
                     st.error("❌ Save failed - no data returned from database")
-                    
             except Exception as e:
                 st.error(f"❌ Error saving settings: {str(e)}")
+
 # TAB 3: AI CHAT
 with tabs[2]:
     st.header("💬 AI Chat Assistant")
     st.markdown("Ask me anything about using A.R.I.A. I'm here to help!")
     
-    # Display chat history
     for message in st.session_state['chat_messages']:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
     
-    # Quick action buttons
     st.markdown("### 💡 Quick Questions")
     col1, col2 = st.columns(2)
-    
     with col1:
         if st.button("🎯 How do I find leads?", use_container_width=True):
             st.session_state['chat_messages'].append({"role": "user", "content": "How do I find leads?"})
-            response = get_ai_response("How do I find leads?", user_settings)
-            st.session_state['chat_messages'].append({"role": "assistant", "content": response})
+            st.session_state['chat_messages'].append({"role": "assistant", "content": get_ai_response("How do I find leads?", user_settings)})
             st.rerun()
-        
         if st.button("⭐ How do I manage reviews?", use_container_width=True):
             st.session_state['chat_messages'].append({"role": "user", "content": "How do I manage reviews?"})
-            response = get_ai_response("How do I manage reviews?", user_settings)
-            st.session_state['chat_messages'].append({"role": "assistant", "content": response})
+            st.session_state['chat_messages'].append({"role": "assistant", "content": get_ai_response("How do I manage reviews?", user_settings)})
             st.rerun()
-    
     with col2:
         if st.button("📱 How do I send WhatsApp?", use_container_width=True):
             st.session_state['chat_messages'].append({"role": "user", "content": "How do I send WhatsApp?"})
-            response = get_ai_response("How do I send WhatsApp?", user_settings)
-            st.session_state['chat_messages'].append({"role": "assistant", "content": response})
+            st.session_state['chat_messages'].append({"role": "assistant", "content": get_ai_response("How do I send WhatsApp?", user_settings)})
             st.rerun()
-        
         if st.button("🎨 How do I create content?", use_container_width=True):
             st.session_state['chat_messages'].append({"role": "user", "content": "How do I create content?"})
-            response = get_ai_response("How do I create content?", user_settings)
-            st.session_state['chat_messages'].append({"role": "assistant", "content": response})
+            st.session_state['chat_messages'].append({"role": "assistant", "content": get_ai_response("How do I create content?", user_settings)})
             st.rerun()
     
-    # Chat input
     st.markdown("---")
     if prompt := st.chat_input("Type your question here..."):
         st.session_state['chat_messages'].append({"role": "user", "content": prompt})
-        
-        response = get_ai_response(prompt, user_settings)
-        st.session_state['chat_messages'].append({"role": "assistant", "content": response})
+        st.session_state['chat_messages'].append({"role": "assistant", "content": get_ai_response(prompt, user_settings)})
         st.rerun()
     
-    # Clear chat
     if len(st.session_state['chat_messages']) > 1:
         if st.button("🗑️ Clear Chat", type="secondary"):
-            st.session_state['chat_messages'] = [
-                {"role": "assistant", "content": f"👋 **Welcome to A.R.I.A., {user_email.split('@')[0]}!**\n\nI'm your AI assistant. I can help you:\n- 🎯 Find new business leads\n- ✉️ Write professional responses\n-  Manage customer reviews\n- 🎨 Create marketing content\n- 📱 Send WhatsApp broadcasts\n- 💰 Negotiate with vendors\n\n**What would you like to do first?**"}
-            ]
+            st.session_state['chat_messages'] = [{"role": "assistant", "content": f"👋 **Welcome to A.R.I.A., {user_email.split('@')[0]}!**\n\nI'm your AI assistant. I can help you:\n- 🎯 Find new business leads\n- ✉️ Write professional responses\n- ⭐ Manage customer reviews\n- 🎨 Create marketing content\n- 📱 Send WhatsApp broadcasts\n- 💰 Negotiate with vendors\n\n**What would you like to do first?**"}]
             st.rerun()
 
 # TAB 4: LEAD FINDER
 with tabs[3]:
     st.header("Lead Finder")
     st.markdown("Find real businesses with verified emails in your target market.")
-    
     if not user_settings.get('business_pitch'):
         st.warning("⚠️ Complete Business Profile first!")
     else:
@@ -936,6 +662,7 @@ with tabs[3]:
             with col2: location_search = st.text_input("Location", value=user_settings.get('location', ''))
             num_leads = st.slider("Number of Leads", 3, 10, 5)
             if st.form_submit_button("🔍 Find Leads", type="primary"):
+                log_usage(st.session_state['user'].id, 'leadgen')
                 with st.spinner("Searching..."):
                     crew = create_prospect_finder_crew()
                     result = crew.kickoff(inputs={"category": category, "location": location_search, "num_leads": num_leads})
@@ -945,15 +672,21 @@ with tabs[3]:
 # TAB 5: RESPONSE WRITER
 with tabs[4]:
     st.header("Response Writer")
-    st.markdown("Generate professional property profiles and reply emails.")
-    
+    st.markdown("Generate professional business profiles/proposals and reply emails.")
     with st.form("response_form"):
         incoming = st.text_area("Incoming Lead Request", height=100)
         raw_details = st.text_area("Your Business Details", height=150, value=user_settings.get('business_pitch', ''))
         if st.form_submit_button("✨ Generate Response", type="primary"):
+            log_usage(st.session_state['user'].id, 'response')
             with st.spinner("Crafting..."):
                 crew = create_response_crew()
-                result = crew.kickoff(inputs={"incoming_request": incoming, "raw_business_details": raw_details, "business_name": user_settings.get('business_name', 'Your Business'), "contact_info": user_settings.get('contact_info', '')})
+                result = crew.kickoff(inputs={
+                    "incoming_request": incoming, 
+                    "raw_business_details": raw_details, 
+                    "business_name": user_settings.get('business_name', 'Your Business'), 
+                    "industry": user_settings.get('industry', 'General'),
+                    "contact_info": user_settings.get('contact_info', '')
+                })
                 st.success("✅ Generated!")
                 parts = result.raw.split("---EMAIL---")
                 st.markdown(parts[0])
@@ -965,18 +698,10 @@ with tabs[4]:
 with tabs[5]:
     st.header("Content Studio")
     st.markdown("Turn one piece of content into a full week of marketing materials.")
-    
     with st.form("content_form"):
         st.markdown("### 📝 Source Material")
-        st.markdown("*Paste text, OR upload an image/video description*")
-        
-        # Option 1: Text input
-        source = st.text_area("Paste your content here", height=150, 
-                             placeholder="Paste your blog post, video transcript, social media caption, or describe your image/video here...")
-        
-        # Option 2: File upload (for images/videos)
-        uploaded_file = st.file_uploader("OR upload an image/video", type=['jpg', 'jpeg', 'png', 'mp4', 'mov'], 
-                                        help="Upload a photo or video, then describe what it shows in the text box above")
+        source = st.text_area("Paste your content here", height=150, placeholder="Paste your blog post, video transcript, social media caption, or describe your image/video here...")
+        uploaded_file = st.file_uploader("OR upload an image/video", type=['jpg', 'jpeg', 'png', 'mp4', 'mov'], help="Upload a photo or video, then describe what it shows in the text box above")
         
         if uploaded_file is not None:
             st.success(f"✅ Uploaded: {uploaded_file.name}")
@@ -990,31 +715,22 @@ with tabs[5]:
             elif not source and uploaded_file is not None:
                 st.error("⚠️ You uploaded a file but didn't describe it. Please add a description in the text box above.")
             else:
+                log_usage(st.session_state['user'].id, 'content')
                 with st.spinner("Analyzing..."):
-                    # If they uploaded a file, prepend that info
-                    if uploaded_file is not None:
-                        full_source = f"[Image/Video: {uploaded_file.name}] {source}"
-                    else:
-                        full_source = source
-                    
+                    full_source = f"[Image/Video: {uploaded_file.name}] {source}" if uploaded_file is not None else source
                     crew = create_repurposing_crew()
-                    result = crew.kickoff(inputs={"source_content": full_source, "target_audience": audience})
+                    result = crew.kickoff(inputs={"source_content": full_source, "target_audience": audience, "industry": user_settings.get('industry', 'General')})
                     parsed = parse_json_output(result.raw)
                     st.success("✅ Content Generated!")
                     
-                    # Display all content types
                     st.subheader("📝 Blog Post")
                     st.markdown(parsed.get('blog', 'Not generated'))
-                    
-                    st.subheader(" LinkedIn Post")
+                    st.subheader("💼 LinkedIn Post")
                     st.markdown(parsed.get('linkedin', 'Not generated'))
-                    
                     st.subheader("🐦 Twitter Thread")
                     st.markdown(parsed.get('twitter', 'Not generated'))
-                    
                     st.subheader("📸 Instagram Caption")
                     st.markdown(parsed.get('instagram', 'Not generated'))
-                    
                     st.subheader("📧 Newsletter Email")
                     st.markdown(parsed.get('newsletter', 'Not generated'))
 
@@ -1022,16 +738,23 @@ with tabs[5]:
 with tabs[6]:
     st.header("Review Responses")
     st.markdown("Instantly generate empathetic, brand-safe responses to reviews.")
-    
     with st.form("review_form"):
         col1, col2 = st.columns(2)
         with col1: reviewer = st.text_input("Reviewer Name")
         with col2: sentiment = st.radio("Sentiment", ["Positive", "Negative", "Mixed"], horizontal=True)
         review_text = st.text_area("Review Text", height=120)
         if st.form_submit_button("✨ Generate Response", type="primary"):
+            log_usage(st.session_state['user'].id, 'review')
             with st.spinner("Writing..."):
                 crew = create_review_crew()
-                result = crew.kickoff(inputs={"reviewer_name": reviewer, "review_text": review_text, "sentiment": sentiment, "contact_info": user_settings.get('contact_info', '')})
+                result = crew.kickoff(inputs={
+                    "reviewer_name": reviewer, 
+                    "review_text": review_text, 
+                    "sentiment": sentiment, 
+                    "business_name": user_settings.get('business_name', 'Your Business'),
+                    "industry": user_settings.get('industry', 'General'),
+                    "contact_info": user_settings.get('contact_info', '')
+                })
                 st.success("✅ Response Generated!")
                 st.markdown(result.raw)
 
@@ -1039,9 +762,8 @@ with tabs[6]:
 with tabs[7]:
     st.header("WhatsApp Studio")
     st.markdown("Create engaging WhatsApp broadcasts for your customer list.")
-    
     if not user_settings.get('business_name'):
-        st.warning("️ Complete Business Profile first!")
+        st.warning("⚠️ Complete Business Profile first!")
     else:
         with st.form("whatsapp_form"):
             col1, col2 = st.columns(2)
@@ -1049,6 +771,7 @@ with tabs[7]:
             with col2: audience = st.selectbox("Target Audience", ["All Customers", "VIP Customers", "New Customers"])
             details = st.text_area("Offer Details", height=120)
             if st.form_submit_button("✨ Generate Broadcast", type="primary"):
+                log_usage(st.session_state['user'].id, 'whatsapp')
                 with st.spinner("Creating..."):
                     crew = create_whatsapp_crew()
                     result = crew.kickoff(inputs={"business_name": user_settings['business_name'], "broadcast_type": btype, "specific_details": details, "contact_info": user_settings.get('contact_info', '')})
@@ -1059,9 +782,8 @@ with tabs[7]:
 with tabs[8]:
     st.header("Negotiator")
     st.markdown("Lower your business costs with data-driven negotiation emails.")
-    
     if not user_settings.get('contact_info'):
-        st.warning("️ Complete Business Profile first!")
+        st.warning("⚠️ Complete Business Profile first!")
     else:
         with st.form("vendor_form"):
             col1, col2 = st.columns(2)
@@ -1072,6 +794,7 @@ with tabs[8]:
                 v_cost = st.text_input("Monthly Cost ($)")
                 v_date = st.text_input("Contract End Date")
             if st.form_submit_button("🚀 Generate Negotiation Email", type="primary"):
+                log_usage(st.session_state['user'].id, 'vendor')
                 with st.spinner("Researching..."):
                     crew = create_negotiation_crew()
                     result = crew.kickoff(inputs={"vendor_name": v_name, "current_service": v_service, "monthly_cost": v_cost, "contract_end_date": v_date, "contact_info": user_settings['contact_info']})
