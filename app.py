@@ -878,6 +878,37 @@ with tabs[1]:
                 st.error(f"❌ Error saving settings: {str(e)}")
                 st.exception(e)
 
+    # TEMPORARY DEBUG BUTTON - Remove after testing
+    st.markdown("---")
+    st.subheader(" Database Test")
+    if st.button("🧪 Test Direct Database Insert"):
+        try:
+            from db import supabase_admin
+            
+            test_data = {
+                "user_id": st.session_state['user'].id,
+                "business_name": "Test Direct Insert",
+                "industry": "Hospitality",
+                "location": "Test Location",
+                "contact_info": "Test Contact",
+                "business_pitch": "Test Pitch",
+                "gmail_app_password": "test_encrypted_value"
+            }
+            
+            st.write("📋 Attempting direct insert...")
+            res = supabase_admin.table("business_settings").insert(test_data).execute()
+            
+            if res.data:
+                st.success("✅ Direct insert SUCCESSFUL!")
+                st.write("Response:", res.data)
+            else:
+                st.error("❌ Direct insert failed - no data returned")
+                st.write("Response:", res)
+                
+        except Exception as e:
+            st.error(f"❌ Exception: {str(e)}")
+            st.exception(e)
+
 # TAB 3: AI CHAT
 with tabs[2]:
     st.header("💬 AI Chat Assistant")
