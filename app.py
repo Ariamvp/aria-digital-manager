@@ -806,33 +806,77 @@ with tabs[1]:
     st.header("Business Profile")
     st.markdown("Configure your business details to personalize all AI outputs.")
     
-    with st.form("business_form"):
+    # Show current user info for debugging
+    st.info(f"👤 Current User ID: `{st.session_state['user'].id}`")
+    
+    with st.form("business_form", clear_on_submit=False):
         col1, col2 = st.columns(2)
         with col1:
             biz_name = st.text_input("Business Name *", value=user_settings.get('business_name', ''))
-            industry = st.selectbox("Industry", ["Hospitality", "Food/FMCG", "Service", "Retail", "Other"], index=0)
+            industry = st.selectbox("Industry", ["Hospitality", "Food/FMCG", "Service", "Retail", "Other"], 
+                                   index=0 if not user_settings.get('industry') else 
+                                   ["Hospitality", "Food/FMCG", "Service", "Retail", "Other"].index(user_settings.get('industry', 'Hospitality')))
             location = st.text_input("Primary Location *", value=user_settings.get('location', ''))
         with col2:
             contact_info = st.text_input("Contact Info (Name | Phone | Email) *", value=user_settings.get('contact_info', ''))
             biz_pitch = st.text_area("Core Pitch *", height=100, value=user_settings.get('business_pitch', ''))
         
+        st.markdown("---")
         st.subheader("🔐 Integration Credentials")
+        st.markdown("*These will be encrypted before saving*")
+        
         col3, col4 = st.columns(2)
         with col3:
-            gmail_pw = st.text_input("Gmail App Password", type="password", value=user_settings.get('gmail_app_password', ''))
-            tg_token = st.text_input("Telegram Bot Token", type="password", value=user_settings.get('telegram_bot_token', ''))
+            gmail_pw = st.text_input("Gmail App Password", type="password", 
+                                    value=user_settings.get('gmail_app_password', ''),
+                                    help="Enter your Gmail App Password (not your regular password)")
+            tg_token = st.text_input("Telegram Bot Token", type="password",
+                                    value=user_settings.get('telegram_bot_token', ''),
+                                    help="Get this from @BotFather on Telegram")
         with col4:
-            tg_chat = st.text_input("Telegram Chat ID", value=user_settings.get('telegram_chat_id', ''))
+            tg_chat = st.text_input("Telegram Chat ID",
+                                   value=user_settings.get('telegram_chat_id', ''),
+                                   help="Your Telegram chat ID for notifications")
         
-        if st.form_submit_button("💾 Save Settings", type="primary", use_container_width=True):
-            save_user_settings(st.session_state['user'].id, {
-                "business_name": biz_name, "industry": industry, "location": location,
-                "contact_info": contact_info, "business_pitch": biz_pitch,
-                "gmail_app_password": gmail_pw, "telegram_bot_token": tg_token,
+        # Submit button
+        submitted = st.form_submit_button("💾 Save Settings", type="primary", use_container_width=True)
+        
+        if submitted:
+            st.info("⏳ Saving... Please wait.")
+            
+            # Prepare data to save
+            settings_data = {
+                "business_name": biz_name,
+                "industry": industry,
+                "location": location,
+                "contact_info": contact_info,
+                "business_pitch": biz_pitch,
+                "gmail_app_password": gmail_pw,
+                "telegram_bot_token": tg_token,
                 "telegram_chat_id": tg_chat
-            })
-            st.success("✅ Settings saved successfully!")
-            st.rerun()
+            }
+            
+            # Debug: Print what we're trying to save
+            st.write("📋 **Data being saved:**")
+            st.json({k: ("[ENCRYPTED]" if k in ['gmail_app_password', 'telegram_bot_token'] else v) 
+                    for k, v in settings_data.items()})
+            
+            # Try to save
+            try:
+                result = save_user_settings(st.session_state['user'].id, settings_data)
+                
+                if result:
+                    st.success("✅ Settings saved successfully!")
+                    st.balloons()
+                    # Force a rerun to load the new settings
+                    st.rerun()
+                else:
+                    st.error("❌ Save failed - no data returned from database")
+                    st.warning("️ Check Railway logs for more details")
+                    
+            except Exception as e:
+                st.error(f"❌ Error saving settings: {str(e)}")
+                st.exception(e)
 
 # TAB 3: AI CHAT
 with tabs[2]:
