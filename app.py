@@ -1217,22 +1217,45 @@ Thank you!
                                     st.success("Payment status updated!")
                                     st.rerun()
                             
-                            with col_act4:
-                                if st.button("🗑️ Delete", key=f"del_{booking['id']}", use_container_width=True):
-                                    st.warning("⚠️ **This action cannot be undone!**")
-                                    col_del1, col_del2 = st.columns(2)
-                                    with col_del1:
-                                        if st.button("✅ Yes, Delete", key=f"del_confirm_{booking['id']}", type="primary", use_container_width=True):
-                                            try:
-                                                supabase.table("festival_bookings").delete().eq("id", booking['id']).execute()
-                                                st.success("️ Booking deleted successfully!")
-                                                send_telegram_alert(f"🗑️ <b>Booking Deleted</b>\n📦 Package: {pkg_info['package_name']}\n👤 Customer: {booking['customer_name']}\n📞 Phone: {booking['customer_phone']}\n💰 Amount: ₹{booking['total_amount']:.2f}\n🏢 Deleted by: {user_settings.get('business_name', 'Unknown')}")
-                                                st.rerun()
-                                            except Exception as e:
-                                                st.error(f"Error deleting: {str(e)}")
-                                    with col_del2:
-                                        if st.button("❌ Cancel", key=f"del_cancel_{booking['id']}", use_container_width=True):
-                                            st.rerun()
+                                                        with col_act4:
+                                if st.button("️ Delete", key=f"del_{booking['id']}", use_container_width=True):
+                                    # Store the booking ID to delete in session state
+                                    st.session_state['delete_booking_id'] = booking['id']
+                                    st.session_state['delete_booking_name'] = pkg_info['package_name']
+                                    st.session_state['delete_customer_name'] = booking['customer_name']
+                                    st.session_state['delete_amount'] = booking['total_amount']
+                                    st.rerun()
+                        
+                        # Show delete confirmation outside the expander
+                        if st.session_state.get('delete_booking_id') == booking['id']:
+                            st.error(f"⚠️ **WARNING: About to delete booking for {st.session_state['delete_customer_name']}**")
+                            st.warning(f"This action **cannot be undone**! The booking will be permanently removed.")
+                            
+                            col_del1, col_del2 = st.columns(2)
+                            with col_del1:
+                                if st.button("✅ Yes, Delete Permanently", key=f"del_confirm_{booking['id']}", type="primary", use_container_width=True):
+                                    try:
+                                        # Delete the booking
+                                        delete_res = supabase.table("festival_bookings").delete().eq("id", booking['id']).execute()
+                                        
+                                        # Clear the delete state
+                                        st.session_state['delete_booking_id'] = None
+                                        
+                                        st.success("🗑️ Booking deleted successfully!")
+                                        send_telegram_alert(f"🗑️ <b>Booking Deleted</b>\n📦 Package: {st.session_state['delete_booking_name']}\n👤 Customer: {st.session_state['delete_customer_name']}\n💰 Amount: ₹{st.session_state['delete_amount']:.2f}\n🏢 Deleted by: {user_settings.get('business_name', 'Unknown')}")
+                                        
+                                        # Force complete refresh
+                                        st.cache_data.clear()
+                                        st.rerun()
+                                        
+                                    except Exception as e:
+                                        st.error(f"❌ Error deleting booking: {str(e)}")
+                                        send_telegram_alert(f"🚨 <b>Delete Error</b>\n❌ Error: {str(e)}\n📦 Booking ID: {booking['id']}")
+                            
+                            with col_del2:
+                                if st.button("❌ Cancel", key=f"del_cancel_{booking['id']}", use_container_width=True):
+                                    st.session_state['delete_booking_id'] = None
+                                    st.rerun()
             else:
                 st.info("No bookings yet. Share your booking link with customers!")
                 
