@@ -1217,7 +1217,7 @@ Thank you!
                                     st.success("Payment status updated!")
                                     st.rerun()
                             
-                                                        with col_act4:
+                            with col_act4:
                                 if st.button("️ Delete", key=f"del_{booking['id']}", use_container_width=True):
                                     # Store the booking ID to delete in session state
                                     st.session_state['delete_booking_id'] = booking['id']
