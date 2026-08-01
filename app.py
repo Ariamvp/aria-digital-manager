@@ -3,6 +3,7 @@ import json
 import re
 import uuid
 from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta  # Add timedelta
 import streamlit as st
 from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, Process, LLM
@@ -649,7 +650,8 @@ tabs = st.tabs([
     "🎨 Content Studio",
     "⭐ Review Responses",
     "📱 WhatsApp Studio",
-    "🤝 Negotiator"
+    "🤝 Negotiator",
+    "🎊 Festival Bookings" 
 ])
 
 # TAB 1: DASHBOARD
@@ -912,3 +914,344 @@ with tabs[8]:
                     parsed = parse_json_output(result.raw)
                     st.success("✅ Draft Generated!")
                     st.code(parsed.get('body', ''), language="text")
+
+# TAB 10: FESTIVAL BOOKINGS (NEW!)
+with tabs[9]:  # Add this as 10th tab
+    st.header("🎊 Festival Pre-Booking Platform")
+    st.markdown("Create and manage festival packages (Onam, Christmas, Eid, etc.)")
+    
+    # Initialize session state
+    if 'booking_tab' not in st.session_state:
+        st.session_state['booking_tab'] = 'create'
+    
+    # Tab navigation
+    book_tab1, book_tab2, book_tab3 = st.tabs(["📦 Create Package", "📝 View Bookings", " Customer Booking Form"])
+    
+    # === TAB 1: CREATE PACKAGE ===
+    with book_tab1:
+        st.subheader("Create New Festival Package")
+        
+        with st.form("create_package_form"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                pkg_name = st.text_input("Package Name *", placeholder="e.g., Onam Sadya Deluxe Package")
+                festival = st.selectbox("Festival Type *", ["Onam", "Christmas", "Eid", "Vishu", "New Year", "Other"])
+                pkg_desc = st.text_area("Package Description", height=100, 
+                                       placeholder="Include menu items, inclusions, etc.")
+            
+            with col2:
+                price = st.number_input("Price Per Person (₹) *", min_value=0.0, step=100.0)
+                min_pax = st.number_input("Minimum Persons", min_value=1, value=2)
+                max_pax = st.number_input("Maximum Persons", min_value=1, value=50)
+            
+            col3, col4 = st.columns(2)
+            with col3:
+                avail_from = st.date_input("Available From *", value=datetime.now().date())
+                delivery_avail = st.checkbox("Delivery Available", value=True)
+                if delivery_avail:
+                    del_charge = st.number_input("Delivery Charge (₹)", min_value=0.0, value=50.0)
+                else:
+                    del_charge = 0.0
+            
+            with col4:
+                avail_until = st.date_input("Available Until *", value=datetime.now().date() + timedelta(days=30))
+                pickup_only = st.checkbox("Pickup Only", value=False)
+                capacity = st.number_input("Total Capacity (persons)", min_value=1, value=100)
+            
+            if st.form_submit_button("🎁 Create Package", type="primary", use_container_width=True):
+                if not pkg_name or not festival or price <= 0:
+                    st.error("Please fill in all required fields!")
+                else:
+                    try:
+                        package_data = {
+                            "user_id": st.session_state['user'].id,
+                            "package_name": pkg_name,
+                            "festival_type": festival,
+                            "description": pkg_desc,
+                            "price_per_person": price,
+                            "min_persons": min_pax,
+                            "max_persons": max_pax,
+                            "available_from": avail_from.isoformat(),
+                            "available_until": avail_until.isoformat(),
+                            "delivery_available": delivery_avail,
+                            "delivery_charge": del_charge,
+                            "pickup_only": pickup_only,
+                            "total_capacity": capacity,
+                            "bookings_count": 0,
+                            "is_active": True
+                        }
+                        
+                        res = supabase.table("festival_packages").insert(package_data).execute()
+                        
+                        if res.data:
+                            st.success(f"✅ Package '{pkg_name}' created successfully!")
+                            send_telegram_alert(f"🎊 <b>New Festival Package Created!</b>\n📦 Package: {pkg_name}\n🎉 Festival: {festival}\n Price: ₹{price}/person\n Business: {user_settings.get('business_name', 'Unknown')}")
+                        else:
+                            st.error("Failed to create package")
+                            
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
+                        send_telegram_alert(f"🚨 <b>Package Creation Error</b>\n❌ Error: {str(e)}")
+        
+        # Display existing packages
+        st.markdown("---")
+        st.subheader("Your Active Packages")
+        
+        try:
+            packages_res = supabase.table("festival_packages").select("*").eq("user_id", st.session_state['user'].id).eq("is_active", True).execute()
+            
+            if packages_res.data:
+                for pkg in packages_res.data:
+                    with st.expander(f"📦 {pkg['package_name']} - ₹{pkg['price_per_person']}/person", expanded=False):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.markdown(f"**Festival:** {pkg['festival_type']}")
+                            st.markdown(f"**Price:** ₹{pkg['price_per_person']} per person")
+                            st.markdown(f"**Min/Max:** {pkg['min_persons']} - {pkg['max_persons']} persons")
+                        with col2:
+                            st.markdown(f"**Available:** {pkg['available_from']} to {pkg['available_until']}")
+                            st.markdown(f"**Delivery:** {'Yes' if pkg['delivery_available'] else 'No'} (+₹{pkg['delivery_charge']})")
+                            st.markdown(f"**Pickup:** {'Yes' if pkg['pickup_only'] else 'No'}")
+                        st.markdown(f"**Description:** {pkg['description']}")
+                        
+                        # Deactivate button
+                        if st.button(f"⏸️ Deactivate {pkg['package_name']}", key=f"deact_{pkg['id']}"):
+                            supabase.table("festival_packages").update({"is_active": False}).eq("id", pkg['id']).execute()
+                            st.success("Package deactivated")
+                            st.rerun()
+            else:
+                st.info("No packages created yet. Create your first package above!")
+                
+        except Exception as e:
+            st.error(f"Error loading packages: {str(e)}")
+    
+    # === TAB 2: VIEW BOOKINGS ===
+    with book_tab2:
+        st.subheader("Festival Bookings Management")
+        
+        # Get all bookings
+        try:
+            bookings_res = supabase.table("festival_bookings").select("""
+                *,
+                festival_packages (
+                    package_name,
+                    festival_type,
+                    price_per_person
+                )
+            """).eq("user_id", st.session_state['user'].id').order("created_at", desc=True).execute()
+            
+            if bookings_res.data:
+                # Summary stats
+                total_bookings = len(bookings_res.data)
+                total_revenue = sum(b['total_amount'] for b in bookings_res.data)
+                pending_payments = sum(b['total_amount'] - b['advance_paid'] for b in bookings_res.data if b['payment_status'] != 'paid')
+                
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Total Bookings", total_bookings)
+                col2.metric("Total Revenue", f"₹{total_revenue:,.2f}")
+                col3.metric("Pending Payments", f"₹{pending_payments:,.2f}")
+                
+                st.markdown("---")
+                
+                # Display bookings
+                for booking in bookings_res.data:
+                    pkg_info = booking['festival_packages']
+                    
+                    with st.expander(f"🎫 {pkg_info['package_name']} - {booking['customer_name']} ({booking['booking_date']})", expanded=False):
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown(f"**Customer:** {booking['customer_name']}")
+                            st.markdown(f"**Phone:** {booking['customer_phone']}")
+                            st.markdown(f"**Email:** {booking['customer_email'] or 'N/A'}")
+                            st.markdown(f"**Persons:** {booking['number_of_persons']}")
+                        
+                        with col2:
+                            st.markdown(f"**Booking Date:** {booking['booking_date']}")
+                            st.markdown(f"**Delivery Type:** {booking['delivery_type'].upper()}")
+                            if booking['delivery_type'] == 'delivery':
+                                st.markdown(f"**Address:** {booking['delivery_address']}")
+                            st.markdown(f"**Total Amount:** ₹{booking['total_amount']:.2f}")
+                        
+                        st.markdown(f"**Payment Status:** {booking['payment_status'].upper()}")
+                        st.markdown(f"**Advance Paid:** ₹{booking['advance_paid']:.2f}")
+                        st.markdown(f"**Balance:** ₹{booking['total_amount'] - booking['advance_paid']:.2f}")
+                        
+                        if booking['special_requests']:
+                            st.markdown(f"**Special Requests:** {booking['special_requests']}")
+                        
+                        # Update payment status
+                        col_upd1, col_upd2 = st.columns(2)
+                        with col_upd1:
+                            new_status = st.selectbox("Update Payment Status", 
+                                                    ["pending", "advance", "paid"],
+                                                    index=["pending", "advance", "paid"].index(booking['payment_status']),
+                                                    key=f"status_{booking['id']}")
+                        with col_upd2:
+                            if st.button("💾 Update Status", key=f"upd_{booking['id']}"):
+                                supabase.table("festival_bookings").update({"payment_status": new_status}).eq("id", booking['id']).execute()
+                                st.success("Payment status updated!")
+                                st.rerun()
+                        
+                        # Send WhatsApp reminder button
+                        if st.button(" Send WhatsApp Reminder", key=f"wa_{booking['id']}"):
+                            reminder_msg = f"""
+🎊 *Booking Confirmation - {pkg_info['package_name']}*
+
+Dear {booking['customer_name']},
+
+Thank you for booking with {user_settings.get('business_name', 'us')}!
+
+*Booking Details:*
+📦 Package: {pkg_info['package_name']}
+👥 Persons: {booking['number_of_persons']}
+ Date: {booking['booking_date']}
+ Total: ₹{booking['total_amount']:.2f}
+🚚 Type: {booking['delivery_type'].upper()}
+
+{f'📍 Address: {booking["delivery_address"]}' if booking['delivery_type'] == 'delivery' else '🏪 Pickup from our location'}
+
+*Payment:*
+Advance: ₹{booking['advance_paid']:.2f}
+Balance: ₹{booking['total_amount'] - booking['advance_paid']:.2f}
+
+For queries: {user_settings.get('contact_info', '')}
+
+See you soon! 
+"""
+                            st.code(reminder_msg, language="text")
+                            st.info("Copy the message above and send via WhatsApp")
+            else:
+                st.info("No bookings yet. Share your booking link with customers!")
+                
+        except Exception as e:
+            st.error(f"Error loading bookings: {str(e)}")
+    
+    # === TAB 3: CUSTOMER BOOKING FORM ===
+    with book_tab3:
+        st.subheader("📝 Customer Booking Form")
+        st.markdown("*Share this form link with your customers for pre-bookings*")
+        
+        # Get active packages for dropdown
+        try:
+            active_packages = supabase.table("festival_packages").select("*").eq("user_id", st.session_state['user'].id).eq("is_active", True).execute()
+            
+            if active_packages.data:
+                pkg_options = {f"{p['package_name']} - ₹{p['price_per_person']}/person": p for p in active_packages.data}
+                selected_pkg_name = st.selectbox("Select Package", list(pkg_options.keys()))
+                selected_pkg = pkg_options[selected_pkg_name]
+                
+                st.info(f"**Package:** {selected_pkg['package_name']} | **Price:** ₹{selected_pkg['price_per_person']}/person")
+                
+                with st.form("customer_booking_form"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        cust_name = st.text_input("Customer Name *")
+                        cust_phone = st.text_input("Phone Number *")
+                        cust_email = st.text_input("Email Address")
+                    
+                    with col2:
+                        num_persons = st.number_input("Number of Persons *", 
+                                                     min_value=selected_pkg['min_persons'], 
+                                                     max_value=selected_pkg['max_persons'],
+                                                     value=selected_pkg['min_persons'])
+                        booking_date = st.date_input("Preferred Date *", 
+                                                    min_value=selected_pkg['available_from'],
+                                                    max_value=selected_pkg['available_until'])
+                    
+                    del_type = st.radio("Delivery Type", ["pickup", "delivery"] if selected_pkg['delivery_available'] else ["pickup"])
+                    
+                    if del_type == "delivery":
+                        del_address = st.text_area("Delivery Address *", placeholder="Full address with landmarks")
+                    else:
+                        del_address = ""
+                    
+                    special_req = st.text_area("Special Requests / Dietary Preferences", 
+                                              placeholder="Any allergies, preferences, etc.")
+                    
+                    # Calculate total
+                    total = num_persons * selected_pkg['price_per_person']
+                    if del_type == "delivery":
+                        total += selected_pkg['delivery_charge']
+                    
+                    st.markdown(f"### 💰 Total Amount: ₹{total:.2f}")
+                    
+                    advance = st.number_input("Advance Payment (₹)", min_value=0.0, max_value=float(total), value=min(500.0, total))
+                    
+                    if st.form_submit_button("🎉 Confirm Booking", type="primary", use_container_width=True):
+                        if not cust_name or not cust_phone:
+                            st.error("Please fill in all required fields!")
+                        else:
+                            try:
+                                booking_data = {
+                                    "package_id": selected_pkg['id'],
+                                    "user_id": st.session_state['user'].id,
+                                    "customer_name": cust_name,
+                                    "customer_phone": cust_phone,
+                                    "customer_email": cust_email,
+                                    "number_of_persons": num_persons,
+                                    "booking_date": booking_date.isoformat(),
+                                    "delivery_type": del_type,
+                                    "delivery_address": del_address if del_type == "delivery" else None,
+                                    "total_amount": total,
+                                    "advance_paid": advance,
+                                    "payment_status": "paid" if advance >= total else ("advance" if advance > 0 else "pending"),
+                                    "special_requests": special_req,
+                                    "booking_status": "confirmed"
+                                }
+                                
+                                res = supabase.table("festival_bookings").insert(booking_data).execute()
+                                
+                                if res.data:
+                                    # Update package bookings count
+                                    supabase.table("festival_packages").update({
+                                        "bookings_count": selected_pkg['bookings_count'] + 1
+                                    }).eq("id", selected_pkg['id']).execute()
+                                    
+                                    st.success("✅ Booking confirmed successfully!")
+                                    
+                                    # Generate booking confirmation message
+                                    confirm_msg = f"""
+ *Booking Confirmed - {selected_pkg['package_name']}*
+
+Dear {cust_name},
+
+Thank you for choosing {user_settings.get('business_name', 'us')}!
+
+*Booking Details:*
+🎫 Booking ID: {res.data[0]['id'][:8].upper()}
+ Package: {selected_pkg['package_name']}
+👥 Persons: {num_persons}
+📅 Date: {booking_date}
+💰 Total: ₹{total:.2f}
+💵 Advance: ₹{advance:.2f}
+💳 Balance: ₹{total - advance:.2f}
+🚚 Type: {del_type.upper()}
+
+{f'📍 Address: {del_address}' if del_type == 'delivery' else '🏪 Pickup from our location'}
+
+*Payment Status:* {'PAID' if advance >= total else f'Advance Received - Balance ₹{total - advance:.2f} due on delivery/pickup'}
+
+For queries: {user_settings.get('contact_info', '')}
+
+Looking forward to serving you! 🎉
+"""
+                                    st.code(confirm_msg, language="text")
+                                    st.info("📱 Copy and send this confirmation to customer via WhatsApp")
+                                    
+                                    # Notify admin
+                                    send_telegram_alert(f"🎊 <b>New Booking Received!</b>\n📦 Package: {selected_pkg['package_name']}\n Customer: {cust_name}\n📞 Phone: {cust_phone}\n👥 Persons: {num_persons}\n💰 Total: ₹{total:.2f}\n📅 Date: {booking_date}")
+                                    
+                                else:
+                                    st.error("Failed to create booking")
+                                    
+                            except Exception as e:
+                                st.error(f"Error: {str(e)}")
+                                send_telegram_alert(f"🚨 <b>Booking Error</b>\n❌ Error: {str(e)}")
+            else:
+                st.warning("️ No active packages available. Create a package first in the 'Create Package' tab.")
+                
+        except Exception as e:
+            st.error(f"Error loading packages: {str(e)}")                    
