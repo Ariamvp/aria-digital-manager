@@ -226,8 +226,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. AUTHENTICATION (OTP + Password Flow)
+# 3. AUTHENTICATION (Email + Password + OTP Flow)
 # ==========================================
+from db import send_telegram_alert
 
 def login_page():
     st.title("🔥 Welcome to A.R.I.A.")
@@ -249,99 +250,113 @@ def login_page():
                 st.rerun()
             except Exception as e:
                 st.error(f"Login failed: Invalid email or password.")
-                # Notify admin of login error
                 send_telegram_alert(f"🚨 <b>Login Error</b>\n👤 Email: <code>{email}</code>\n❌ Error: {str(e)}")
     
-    # --- SIGN UP TAB (Multi-Step OTP) ---
+    # --- SIGN UP TAB (Email + Password → OTP) ---
     with tab_signup:
         # Initialize signup state
         if 'signup_step' not in st.session_state:
             st.session_state['signup_step'] = 1
             st.session_state['signup_email'] = ""
-            st.session_state['signup_user_id'] = ""
         
-        # STEP 1: Get Email
+        # STEP 1: Get Email + Password
         if st.session_state['signup_step'] == 1:
-            st.markdown("### Step 1: Enter your Email")
-            st.caption("We will send a 6-digit verification code to this email.")
-            email = st.text_input("Email Address", key="signup_email_input")
+            st.markdown("### Create Your Account")
+            st.caption("Enter your details to get started.")
             
-            if st.button("Send OTP", type="primary", use_container_width=True):
+            email = st.text_input("Email Address", key="signup_email_input")
+            pwd1 = st.text_input("Password (min 6 characters)", type="password", key="signup_pwd1")
+            pwd2 = st.text_input("Confirm Password", type="password", key="signup_pwd2")
+            
+            if st.button("Send Verification Code", type="primary", use_container_width=True):
+                # Validation
                 if not email or "@" not in email:
                     st.error("Please enter a valid email address.")
+                elif len(pwd1) < 6:
+                    st.error("Password must be at least 6 characters.")
+                elif pwd1 != pwd2:
+                    st.error("Passwords do not match!")
                 else:
                     try:
-                        # Send OTP via Supabase
-                        supabase.auth.sign_in_with_otp({"email": email})
+                        # Create account with email + password (sends OTP automatically)
+                        res = supabase.auth.sign_up({
+                            "email": email,
+                            "password": pwd1,
+                            "options": {"data": {"full_name": email.split('@')[0]}}
+                        })
+                        
                         st.session_state['signup_email'] = email
                         st.session_state['signup_step'] = 2
-                        st.success("✅ OTP sent! Check your inbox (and spam folder).")
+                        st.success(f"✅ Verification code sent to {email}! Check your inbox (and spam folder).")
+                        st.info("The code is valid for 60 minutes.")
                         st.rerun()
+                        
                     except Exception as e:
-                        st.error(f"Failed to send OTP: {str(e)}")
-                        send_telegram_alert(f"🚨 <b>Signup Error (Send OTP)</b>\n👤 Email: <code>{email}</code>\n❌ Error: {str(e)}")
+                        error_msg = str(e)
+                        if "already registered" in error_msg.lower():
+                            st.error("This email is already registered. Please login instead.")
+                        else:
+                            st.error(f"Signup failed: {error_msg}")
+                        send_telegram_alert(f"🚨 <b>Signup Error</b>\n👤 Email: <code>{email}</code>\n❌ Error: {error_msg}")
         
         # STEP 2: Verify OTP
         elif st.session_state['signup_step'] == 2:
-            st.markdown(f"### Step 2: Verify OTP")
-            st.caption(f"Code sent to: **{st.session_state['signup_email']}**")
-            otp = st.text_input("Enter 6-digit OTP", key="signup_otp", max_chars=6)
+            st.markdown("### Verify Your Email")
+            st.caption(f"Enter the 6-digit code sent to **{st.session_state['signup_email']}**")
+            
+            otp = st.text_input("Verification Code", key="signup_otp", max_chars=6, placeholder="123456")
             
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("Verify OTP", type="primary", use_container_width=True):
-                    try:
-                        res = supabase.auth.verify_otp({
-                            "email": st.session_state['signup_email'],
-                            "token": otp,
-                            "type": "signup"
-                        })
-                        st.session_state['signup_user_id'] = res.user.id
-                        st.session_state['signup_step'] = 3
-                        st.success("✅ OTP Verified!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error("Invalid or expired OTP. Please try again.")
-                        send_telegram_alert(f"🚨 <b>Signup Error (Verify OTP)</b>\n👤 Email: <code>{st.session_state['signup_email']}</code>\n❌ Error: {str(e)}")
+                if st.button("Verify & Login", type="primary", use_container_width=True):
+                    if not otp or len(otp) != 6:
+                        st.error("Please enter a valid 6-digit code.")
+                    else:
+                        try:
+                            # Verify OTP and log user in
+                            res = supabase.auth.verify_otp({
+                                "email": st.session_state['signup_email'],
+                                "token": otp,
+                                "type": "signup"
+                            })
+                            
+                            st.session_state['user'] = res.user
+                            st.session_state['session'] = res.session
+                            
+                            # Notify admin
+                            send_telegram_alert(f"✅ <b>New User Signup!</b>\n👤 Email: <code>{st.session_state['signup_email']}</code>\n🆔 User ID: <code>{res.user.id}</code>\n🕐 Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                            
+                            st.success("🎉 Email verified! Logging you in...")
+                            
+                            # Clear signup state
+                            st.session_state['signup_step'] = 1
+                            st.session_state['signup_email'] = ""
+                            
+                            st.rerun()
+                            
+                        except Exception as e:
+                            st.error("Invalid or expired code. Please try again.")
+                            send_telegram_alert(f"🚨 <b>OTP Verification Failed</b>\n Email: <code>{st.session_state['signup_email']}</code>\n❌ Error: {str(e)}")
+            
             with col2:
-                if st.button("Change Email", use_container_width=True):
+                if st.button("← Back to Signup", use_container_width=True):
                     st.session_state['signup_step'] = 1
                     st.session_state['signup_email'] = ""
                     st.rerun()
-        
-        # STEP 3: Set Password
-        elif st.session_state['signup_step'] == 3:
-            st.markdown("### Step 3: Set Your Password")
-            st.info("This password will be used for all future logins.")
-            pwd1 = st.text_input("New Password", type="password", key="signup_pwd1")
-            pwd2 = st.text_input("Confirm Password", type="password", key="signup_pwd2")
             
-            if st.button("Complete Signup", type="primary", use_container_width=True):
-                if pwd1 != pwd2:
-                    st.error("Passwords do not match!")
-                elif len(pwd1) < 6:
-                    st.error("Password must be at least 6 characters.")
-                else:
-                    try:
-                        # Update the newly created user with their chosen password
-                        supabase.auth.update_user({"password": pwd1})
-                        
-                        # Notify admin of successful signup
-                        send_telegram_alert(f"✅ <b>New User Signup!</b>\n👤 Email: <code>{st.session_state['signup_email']}</code>\n🆔 User ID: <code>{st.session_state['signup_user_id']}</code>")
-                        
-                        st.success("🎉 Account created successfully! Logging you in...")
-                        
-                        # Clear signup state
-                        st.session_state['signup_step'] = 1
-                        st.session_state['signup_email'] = ""
-                        st.session_state['signup_user_id'] = ""
-                        
-                        # User is already logged in from verify_otp, just rerun to load dashboard
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Failed to set password: {str(e)}")
-                        send_telegram_alert(f"🚨 <b>Signup Error (Set Password)</b>\n👤 Email: <code>{st.session_state['signup_email']}</code>\n❌ Error: {str(e)}")
-
+            # Resend OTP option
+            st.markdown("---")
+            st.caption("Didn't receive the code?")
+            if st.button(" Resend Code"):
+                try:
+                    supabase.auth.sign_up({
+                        "email": st.session_state['signup_email'],
+                        "password": "temp",  # Password already set, just resending OTP
+                        "options": {"data": {"full_name": st.session_state['signup_email'].split('@')[0]}}
+                    })
+                    st.success("✅ New code sent! Check your inbox.")
+                except Exception as e:
+                    st.error(f"Failed to resend: {str(e)}")
 # ==========================================
 # 4. CREW DEFINITIONS (INDUSTRY-AGNOSTIC)
 # ==========================================
