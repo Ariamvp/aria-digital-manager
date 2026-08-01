@@ -1026,9 +1026,13 @@ with tabs[9]:  # Add this as 10th tab
         except Exception as e:
             st.error(f"Error loading packages: {str(e)}")
     
-    # === TAB 2: VIEW BOOKINGS ===
+        # === TAB 2: VIEW BOOKINGS ===
     with book_tab2:
         st.subheader("Festival Bookings Management")
+        
+        # Initialize edit mode state
+        if 'edit_booking_id' not in st.session_state:
+            st.session_state['edit_booking_id'] = None
         
         # Get all bookings
         try:
@@ -1037,7 +1041,8 @@ with tabs[9]:  # Add this as 10th tab
                 festival_packages (
                     package_name,
                     festival_type,
-                    price_per_person
+                    price_per_person,
+                    delivery_charge
                 )
             """).eq("user_id", st.session_state['user'].id).order("created_at", desc=True).execute()
             
@@ -1058,50 +1063,125 @@ with tabs[9]:  # Add this as 10th tab
                 for booking in bookings_res.data:
                     pkg_info = booking['festival_packages']
                     
-                    with st.expander(f"🎫 {pkg_info['package_name']} - {booking['customer_name']} ({booking['booking_date']})", expanded=False):
-                        col1, col2 = st.columns(2)
+                    # Check if this booking is in edit mode
+                    if st.session_state['edit_booking_id'] == booking['id']:
+                        st.markdown(f"### ✏️ Editing Booking: {pkg_info['package_name']}")
                         
-                        with col1:
-                            st.markdown(f"**Customer:** {booking['customer_name']}")
-                            st.markdown(f"**Phone:** {booking['customer_phone']}")
-                            st.markdown(f"**Email:** {booking['customer_email'] or 'N/A'}")
-                            st.markdown(f"**Persons:** {booking['number_of_persons']}")
+                        with st.form(f"edit_form_{booking['id']}"):
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                edit_name = st.text_input("Customer Name *", value=booking['customer_name'], key=f"edit_name_{booking['id']}")
+                                edit_phone = st.text_input("Phone Number *", value=booking['customer_phone'], key=f"edit_phone_{booking['id']}")
+                                edit_email = st.text_input("Email Address", value=booking['customer_email'] or "", key=f"edit_email_{booking['id']}")
+                                edit_persons = st.number_input("Number of Persons *", 
+                                                              min_value=1, 
+                                                              value=booking['number_of_persons'],
+                                                              key=f"edit_persons_{booking['id']}")
+                            
+                            with col2:
+                                edit_date = st.date_input("Booking Date *", 
+                                                         value=datetime.strptime(booking['booking_date'], '%Y-%m-%d').date() if isinstance(booking['booking_date'], str) else booking['booking_date'],
+                                                         key=f"edit_date_{booking['id']}")
+                                edit_del_type = st.radio("Delivery Type", ["pickup", "delivery"], 
+                                                        index=0 if booking['delivery_type'] == 'pickup' else 1,
+                                                        key=f"edit_del_{booking['id']}")
+                                
+                                if edit_del_type == "delivery":
+                                    edit_address = st.text_area("Delivery Address *", 
+                                                               value=booking['delivery_address'] or "",
+                                                               key=f"edit_addr_{booking['id']}")
+                                    total_amt = (edit_persons * pkg_info['price_per_person']) + pkg_info['delivery_charge']
+                                else:
+                                    edit_address = ""
+                                    total_amt = edit_persons * pkg_info['price_per_person']
+                            
+                            edit_special = st.text_area("Special Requests", 
+                                                       value=booking['special_requests'] or "",
+                                                       key=f"edit_special_{booking['id']}")
+                            
+                            st.markdown(f"### 💰 Updated Total: ₹{total_amt:.2f}")
+                            
+                            col_edit1, col_edit2, col_edit3 = st.columns(3)
+                            with col_edit1:
+                                if st.form_submit_button("💾 Save Changes", type="primary", use_container_width=True):
+                                    try:
+                                        update_data = {
+                                            "customer_name": edit_name,
+                                            "customer_phone": edit_phone,
+                                            "customer_email": edit_email,
+                                            "number_of_persons": edit_persons,
+                                            "booking_date": edit_date.isoformat(),
+                                            "delivery_type": edit_del_type,
+                                            "delivery_address": edit_address if edit_del_type == "delivery" else None,
+                                            "total_amount": total_amt,
+                                            "special_requests": edit_special,
+                                            "updated_at": datetime.now(timezone.utc).isoformat()
+                                        }
+                                        
+                                        supabase.table("festival_bookings").update(update_data).eq("id", booking['id']).execute()
+                                        
+                                        st.success("✅ Booking updated successfully!")
+                                        st.session_state['edit_booking_id'] = None
+                                        st.rerun()
+                                        
+                                    except Exception as e:
+                                        st.error(f"Error updating: {str(e)}")
+                            
+                            with col_edit2:
+                                if st.form_submit_button(" Cancel Edit", use_container_width=True):
+                                    st.session_state['edit_booking_id'] = None
+                                    st.rerun()
+                            
+                            with col_edit3:
+                                st.write("")  # Spacer
                         
-                        with col2:
-                            st.markdown(f"**Booking Date:** {booking['booking_date']}")
-                            st.markdown(f"**Delivery Type:** {booking['delivery_type'].upper()}")
-                            if booking['delivery_type'] == 'delivery':
-                                st.markdown(f"**Address:** {booking['delivery_address']}")
-                            st.markdown(f"**Total Amount:** ₹{booking['total_amount']:.2f}")
-                        
-                        st.markdown(f"**Payment Status:** {booking['payment_status'].upper()}")
-                        st.markdown(f"**Advance Paid:** ₹{booking['advance_paid']:.2f}")
-                        st.markdown(f"**Balance:** ₹{booking['total_amount'] - booking['advance_paid']:.2f}")
-                        
-                        if booking['special_requests']:
-                            st.markdown(f"**Special Requests:** {booking['special_requests']}")
-                        
-                        # Update payment status
-                        col_upd1, col_upd2 = st.columns(2)
-                        with col_upd1:
-                            new_status = st.selectbox("Update Payment Status", 
-                                                    ["pending", "advance", "paid"],
-                                                    index=["pending", "advance", "paid"].index(booking['payment_status']),
-                                                    key=f"status_{booking['id']}")
-                        with col_upd2:
-                            if st.button("💾 Update Status", key=f"upd_{booking['id']}"):
-                                supabase.table("festival_bookings").update({"payment_status": new_status}).eq("id", booking['id']).execute()
-                                st.success("Payment status updated!")
-                                st.rerun()
-                        
-                        # Send WhatsApp reminder button
-                        if st.button(" Send WhatsApp Reminder", key=f"wa_{booking['id']}"):
-                            reminder_msg = f"""
-🎊 *Booking Confirmation - {pkg_info['package_name']}*
+                        st.markdown("---")
+                    
+                    else:
+                        # Normal view mode
+                        with st.expander(f"🎫 {pkg_info['package_name']} - {booking['customer_name']} ({booking['booking_date']})", expanded=False):
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                st.markdown(f"**Customer:** {booking['customer_name']}")
+                                st.markdown(f"**Phone:** {booking['customer_phone']}")
+                                st.markdown(f"**Email:** {booking['customer_email'] or 'N/A'}")
+                                st.markdown(f"**Persons:** {booking['number_of_persons']}")
+                            
+                            with col2:
+                                st.markdown(f"**Booking Date:** {booking['booking_date']}")
+                                st.markdown(f"**Delivery Type:** {booking['delivery_type'].upper()}")
+                                if booking['delivery_type'] == 'delivery':
+                                    st.markdown(f"**Address:** {booking['delivery_address']}")
+                                st.markdown(f"**Total Amount:** ₹{booking['total_amount']:.2f}")
+                            
+                            st.markdown(f"**Payment Status:** {booking['payment_status'].upper()}")
+                            st.markdown(f"**Advance Paid:** ₹{booking['advance_paid']:.2f}")
+                            st.markdown(f"**Balance:** ₹{booking['total_amount'] - booking['advance_paid']:.2f}")
+                            
+                            if booking['special_requests']:
+                                st.markdown(f"**Special Requests:** {booking['special_requests']}")
+                            
+                            st.markdown("---")
+                            
+                            # Action buttons
+                            col_act1, col_act2, col_act3, col_act4 = st.columns(4)
+                            
+                            with col_act1:
+                                if st.button("✏️ Edit", key=f"edit_btn_{booking['id']}", use_container_width=True):
+                                    st.session_state['edit_booking_id'] = booking['id']
+                                    st.rerun()
+                            
+                            with col_act2:
+                                if st.button(" Reconfirm", key=f"reconf_{booking['id']}", use_container_width=True):
+                                    # Generate reconfirmation message
+                                    reconf_msg = f"""
+🎊 *Booking Reconfirmation - {pkg_info['package_name']}*
 
 Dear {booking['customer_name']},
 
-Thank you for booking with {user_settings.get('business_name', 'us')}!
+This is a reconfirmation of your booking with {user_settings.get('business_name', 'us')}.
 
 *Booking Details:*
 📦 Package: {pkg_info['package_name']}
@@ -1110,7 +1190,7 @@ Thank you for booking with {user_settings.get('business_name', 'us')}!
  Total: ₹{booking['total_amount']:.2f}
 🚚 Type: {booking['delivery_type'].upper()}
 
-{f'📍 Address: {booking["delivery_address"]}' if booking['delivery_type'] == 'delivery' else '🏪 Pickup from our location'}
+{f' Address: {booking["delivery_address"]}' if booking['delivery_type'] == 'delivery' else '🏪 Pickup from our location'}
 
 *Payment:*
 Advance: ₹{booking['advance_paid']:.2f}
@@ -1118,15 +1198,47 @@ Balance: ₹{booking['total_amount'] - booking['advance_paid']:.2f}
 
 For queries: {user_settings.get('contact_info', '')}
 
-See you soon! 
+Thank you! 🎉
 """
-                            st.code(reminder_msg, language="text")
-                            st.info("Copy the message above and send via WhatsApp")
-            else:
-                st.info("No bookings yet. Share your booking link with customers!")
-                
-        except Exception as e:
-            st.error(f"Error loading bookings: {str(e)}")
+                                    st.code(reconf_msg, language="text")
+                                    st.info("📋 Copy and send via WhatsApp")
+                            
+                            with col_act3:
+                                new_status = st.selectbox("Payment", 
+                                                        ["pending", "advance", "paid"],
+                                                        index=["pending", "advance", "paid"].index(booking['payment_status']),
+                                                        key=f"status_{booking['id']}",
+                                                        label_visibility="collapsed")
+                                if st.button("💾 Update", key=f"upd_{booking['id']}", use_container_width=True):
+                                    supabase.table("festival_bookings").update({"payment_status": new_status}).eq("id", booking['id']).execute()
+                                    st.success("Payment status updated!")
+                                    st.rerun()
+                            
+                            with col_act4:
+                                if st.button("🗑️ Delete", key=f"del_{booking['id']}", use_container_width=True):
+                                    # Show confirmation in expander
+                                    st.warning("⚠️ **This action cannot be undone!**")
+                                    col_del1, col_del2 = st.columns(2)
+                                    with col_del1:
+                                        if st.button("✅ Yes, Delete", key=f"del_confirm_{booking['id']}", type="primary", use_container_width=True):
+                                            try:
+                                                # Delete the booking
+                                                supabase.table("festival_bookings").delete().eq("id", booking['id']).execute()
+                                                
+                                                # Update package bookings count
+                                                supabase.table("festival_packages").update({
+                                                    "bookings_count": max(0, pkg_info.get('bookings_count', 1) - 1)
+                                                }).eq("id", pkg_info['id']).execute()
+                                                
+                                                st.success("🗑️ Booking deleted successfully!")
+                                                send_telegram_alert(f"🗑️ <b>Booking Deleted</b>\n Package: {pkg_info['package_name']}\n👤 Customer: {booking['customer_name']}\n📞 Phone: {booking['customer_phone']}\n💰 Amount: ₹{booking['total_amount']:.2f}\n️ Deleted by: {user_settings.get('business_name', 'Unknown')}")
+                                                st.rerun()
+                                                
+                                            except Exception as e:
+                                                st.error(f"Error deleting: {str(e)}")
+                                    with col_del2:
+                                        if st.button("❌ Cancel", key=f"del_cancel_{booking['id']}", use_container_width=True):
+                                            st.rerun()
     
     # === TAB 3: CUSTOMER BOOKING FORM ===
     with book_tab3:
