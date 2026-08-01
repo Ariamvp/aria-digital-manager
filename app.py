@@ -230,6 +230,35 @@ st.markdown("""
 # ==========================================
 from db import send_telegram_alert
 
+def check_trial(user):
+    """Check if user's trial is still active"""
+    try:
+        res = supabase_admin.table("profiles").select("trial_ends_at, role").eq("id", user.id).execute()
+        if not res.data: 
+            return True  # No profile found, allow access
+        user_data = res.data[0]
+        if user_data.get('role') == 'admin': 
+            return True  # Admins have unlimited access
+        trial_end = user_data.get('trial_ends_at')
+        if trial_end:
+            trial_end_dt = datetime.fromisoformat(trial_end.replace('Z', '+00:00'))
+            if datetime.now(timezone.utc) < trial_end_dt: 
+                return True  # Trial still active
+        return False  # Trial expired
+    except Exception as e:
+        print(f"Error checking trial: {e}")
+        return True  # Allow access if check fails
+
+def get_user_role(user_id):
+    """Get user's role from database"""
+    try:
+        res = supabase_admin.table("profiles").select("role").eq("id", user_id).execute()
+        if res.data: 
+            return res.data[0].get('role', 'user')
+        return 'user'
+    except: 
+        return 'user'
+
 def login_page():
     st.title("🔥 Welcome to A.R.I.A.")
     st.markdown("Your Autonomous Revenue & Intelligence Agent.")
@@ -250,7 +279,7 @@ def login_page():
                 st.rerun()
             except Exception as e:
                 st.error(f"Login failed: Invalid email or password.")
-                send_telegram_alert(f"🚨 <b>Login Error</b>\n👤 Email: <code>{email}</code>\n❌ Error: {str(e)}")
+                send_telegram_alert(f"🚨 <b>Login Error</b>\n Email: <code>{email}</code>\n❌ Error: {str(e)}")
     
     # --- SIGN UP TAB (Email + Password → OTP) ---
     with tab_signup:
@@ -336,7 +365,7 @@ def login_page():
                             
                         except Exception as e:
                             st.error("Invalid or expired code. Please try again.")
-                            send_telegram_alert(f"🚨 <b>OTP Verification Failed</b>\n Email: <code>{st.session_state['signup_email']}</code>\n❌ Error: {str(e)}")
+                            send_telegram_alert(f"🚨 <b>OTP Verification Failed</b>\n👤 Email: <code>{st.session_state['signup_email']}</code>\n❌ Error: {str(e)}")
             
             with col2:
                 if st.button("← Back to Signup", use_container_width=True):
@@ -347,16 +376,17 @@ def login_page():
             # Resend OTP option
             st.markdown("---")
             st.caption("Didn't receive the code?")
-            if st.button(" Resend Code"):
+            if st.button("🔄 Resend Code"):
                 try:
                     supabase.auth.sign_up({
                         "email": st.session_state['signup_email'],
-                        "password": "temp",  # Password already set, just resending OTP
+                        "password": "temp",
                         "options": {"data": {"full_name": st.session_state['signup_email'].split('@')[0]}}
                     })
                     st.success("✅ New code sent! Check your inbox.")
                 except Exception as e:
                     st.error(f"Failed to resend: {str(e)}")
+
 # ==========================================
 # 4. CREW DEFINITIONS (INDUSTRY-AGNOSTIC)
 # ==========================================
