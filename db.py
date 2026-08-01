@@ -1,4 +1,5 @@
 import os
+import requests
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from cryptography.fernet import Fernet
@@ -128,3 +129,26 @@ def get_usage_stats(user_id: str):
     except Exception as e:
         print(f"Error getting stats: {e}")
         return {"total_generations": 0, "total_leads": 0, "emails_sent": 0}
+
+# ==========================================
+# TELEGRAM ALERTS
+# ==========================================
+def send_telegram_alert(message: str):
+    """Sends a notification to the admin Telegram chat."""
+    try:
+        bot_token = os.getenv("SYSTEM_TELEGRAM_BOT_TOKEN")
+        chat_id = os.getenv("SYSTEM_TELEGRAM_CHAT_ID")
+        
+        if not bot_token or not chat_id:
+            print("⚠️ Telegram alerts skipped: Missing SYSTEM_TELEGRAM_BOT_TOKEN or SYSTEM_TELEGRAM_CHAT_ID")
+            return
+            
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "HTML"
+        }
+        requests.post(url, json=payload, timeout=5)
+    except Exception as e:
+        print(f"Failed to send Telegram alert: {e}")        

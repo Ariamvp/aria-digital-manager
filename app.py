@@ -7,6 +7,7 @@ import streamlit as st
 from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, Process, LLM
 from crewai_tools import TavilySearchTool, ScrapeWebsiteTool
+from db import send_telegram_alert
 from db import supabase, supabase_admin, get_user_settings, save_user_settings, log_usage, get_usage_stats
 
 # ==========================================
@@ -225,17 +226,21 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. AUTHENTICATION
+# 3. AUTHENTICATION (OTP + Password Flow)
 # ==========================================
+
 def login_page():
     st.title("🔥 Welcome to A.R.I.A.")
     st.markdown("Your Autonomous Revenue & Intelligence Agent.")
     
     tab_login, tab_signup = st.tabs(["Login", "Sign Up"])
     
+    # --- LOGIN TAB ---
     with tab_login:
-        email = st.text_input("Email", key="login_email")
+        st.markdown("### Existing User Login")
+        email = st.text_input("Email Address", key="login_email")
         password = st.text_input("Password", type="password", key="login_password")
+        
         if st.button("Login", type="primary", use_container_width=True):
             try:
                 res = supabase.auth.sign_in_with_password({"email": email, "password": password})
@@ -243,38 +248,99 @@ def login_page():
                 st.session_state['session'] = res.session
                 st.rerun()
             except Exception as e:
-                st.error(f"Login failed: {str(e)}")
+                st.error(f"Login failed: Invalid email or password.")
+                # Notify admin of login error
+                send_telegram_alert(f"🚨 <b>Login Error</b>\n👤 Email: <code>{email}</code>\n❌ Error: {str(e)}")
     
+    # --- SIGN UP TAB (Multi-Step OTP) ---
     with tab_signup:
-        name = st.text_input("Full Name", key="signup_name")
-        email = st.text_input("Email", key="signup_email")
-        password = st.text_input("Password (min 6 chars)", type="password", key="signup_password")
-        if st.button("Create Account", type="primary", use_container_width=True):
-            try:
-                res = supabase.auth.sign_up({"email": email, "password": password, "options": {"data": {"full_name": name}}})
-                st.success("Account created! Check your email.")
-            except Exception as e:
-                st.error(f"Signup failed: {str(e)}")
-
-def check_trial(user):
-    try:
-        res = supabase_admin.table("profiles").select("trial_ends_at, role").eq("id", user.id).execute()
-        if not res.data: return True
-        user_data = res.data[0]
-        if user_data.get('role') == 'admin': return True
-        trial_end = user_data.get('trial_ends_at')
-        if trial_end:
-            trial_end_dt = datetime.fromisoformat(trial_end.replace('Z', '+00:00'))
-            if datetime.now(timezone.utc) < trial_end_dt: return True
-        return False
-    except: return True
-
-def get_user_role(user_id):
-    try:
-        res = supabase_admin.table("profiles").select("role").eq("id", user_id).execute()
-        if res.data: return res.data[0].get('role', 'user')
-        return 'user'
-    except: return 'user'
+        # Initialize signup state
+        if 'signup_step' not in st.session_state:
+            st.session_state['signup_step'] = 1
+            st.session_state['signup_email'] = ""
+            st.session_state['signup_user_id'] = ""
+        
+        # STEP 1: Get Email
+        if st.session_state['signup_step'] == 1:
+            st.markdown("### Step 1: Enter your Email")
+            st.caption("We will send a 6-digit verification code to this email.")
+            email = st.text_input("Email Address", key="signup_email_input")
+            
+            if st.button("Send OTP", type="primary", use_container_width=True):
+                if not email or "@" not in email:
+                    st.error("Please enter a valid email address.")
+                else:
+                    try:
+                        # Send OTP via Supabase
+                        supabase.auth.sign_in_with_otp({"email": email})
+                        st.session_state['signup_email'] = email
+                        st.session_state['signup_step'] = 2
+                        st.success("✅ OTP sent! Check your inbox (and spam folder).")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed to send OTP: {str(e)}")
+                        send_telegram_alert(f"🚨 <b>Signup Error (Send OTP)</b>\n👤 Email: <code>{email}</code>\n❌ Error: {str(e)}")
+        
+        # STEP 2: Verify OTP
+        elif st.session_state['signup_step'] == 2:
+            st.markdown(f"### Step 2: Verify OTP")
+            st.caption(f"Code sent to: **{st.session_state['signup_email']}**")
+            otp = st.text_input("Enter 6-digit OTP", key="signup_otp", max_chars=6)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Verify OTP", type="primary", use_container_width=True):
+                    try:
+                        res = supabase.auth.verify_otp({
+                            "email": st.session_state['signup_email'],
+                            "token": otp,
+                            "type": "signup"
+                        })
+                        st.session_state['signup_user_id'] = res.user.id
+                        st.session_state['signup_step'] = 3
+                        st.success("✅ OTP Verified!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error("Invalid or expired OTP. Please try again.")
+                        send_telegram_alert(f"🚨 <b>Signup Error (Verify OTP)</b>\n👤 Email: <code>{st.session_state['signup_email']}</code>\n❌ Error: {str(e)}")
+            with col2:
+                if st.button("Change Email", use_container_width=True):
+                    st.session_state['signup_step'] = 1
+                    st.session_state['signup_email'] = ""
+                    st.rerun()
+        
+        # STEP 3: Set Password
+        elif st.session_state['signup_step'] == 3:
+            st.markdown("### Step 3: Set Your Password")
+            st.info("This password will be used for all future logins.")
+            pwd1 = st.text_input("New Password", type="password", key="signup_pwd1")
+            pwd2 = st.text_input("Confirm Password", type="password", key="signup_pwd2")
+            
+            if st.button("Complete Signup", type="primary", use_container_width=True):
+                if pwd1 != pwd2:
+                    st.error("Passwords do not match!")
+                elif len(pwd1) < 6:
+                    st.error("Password must be at least 6 characters.")
+                else:
+                    try:
+                        # Update the newly created user with their chosen password
+                        supabase.auth.update_user({"password": pwd1})
+                        
+                        # Notify admin of successful signup
+                        send_telegram_alert(f"✅ <b>New User Signup!</b>\n👤 Email: <code>{st.session_state['signup_email']}</code>\n🆔 User ID: <code>{st.session_state['signup_user_id']}</code>")
+                        
+                        st.success("🎉 Account created successfully! Logging you in...")
+                        
+                        # Clear signup state
+                        st.session_state['signup_step'] = 1
+                        st.session_state['signup_email'] = ""
+                        st.session_state['signup_user_id'] = ""
+                        
+                        # User is already logged in from verify_otp, just rerun to load dashboard
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed to set password: {str(e)}")
+                        send_telegram_alert(f"🚨 <b>Signup Error (Set Password)</b>\n👤 Email: <code>{st.session_state['signup_email']}</code>\n❌ Error: {str(e)}")
 
 # ==========================================
 # 4. CREW DEFINITIONS (INDUSTRY-AGNOSTIC)
