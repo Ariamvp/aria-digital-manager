@@ -1039,7 +1039,7 @@ with tabs[9]:  # Add this as 10th tab
                     festival_type,
                     price_per_person
                 )
-            """).eq("user_id", st.session_state['user'].id').order("created_at", desc=True).execute()
+            """).eq("user_id", st.session_state['user'].id).order("created_at", desc=True).execute()
             
             if bookings_res.data:
                 # Summary stats
