@@ -331,14 +331,15 @@ def login_page():
         
         # STEP 2: Verify OTP
         elif st.session_state['signup_step'] == 2:
-            st.markdown("### Verify Your Email")
-            st.caption(f"Enter the 6-digit code sent to **{st.session_state['signup_email']}**")
+            st.markdown("### ️ Check Your Email")
+            st.success(f"**We've sent a verification code to:**\n📧 **{st.session_state['signup_email']}**")
+            st.info(" **Please check your inbox (and spam folder) and enter the 6-digit code below to confirm your email.**")
             
-            otp = st.text_input("Verification Code", key="signup_otp", max_chars=6, placeholder="123456")
+            otp = st.text_input("Enter 6-Digit Verification Code", key="signup_otp", max_chars=6, placeholder="123456")
             
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("Verify & Login", type="primary", use_container_width=True):
+                if st.button("✅ Verify & Login", type="primary", use_container_width=True):
                     if not otp or len(otp) != 6:
                         st.error("Please enter a valid 6-digit code.")
                     else:
@@ -365,7 +366,7 @@ def login_page():
                             st.rerun()
                             
                         except Exception as e:
-                            st.error("Invalid or expired code. Please try again.")
+                            st.error("❌ Invalid or expired code. Please check the code and try again.")
                             send_telegram_alert(f"🚨 <b>OTP Verification Failed</b>\n👤 Email: <code>{st.session_state['signup_email']}</code>\n❌ Error: {str(e)}")
             
             with col2:
@@ -376,17 +377,17 @@ def login_page():
             
             # Resend OTP option
             st.markdown("---")
-            st.caption("Didn't receive the code?")
-            if st.button("🔄 Resend Code"):
+            st.caption("🤔 Didn't receive the code?")
+            if st.button("🔄 Resend Code", use_container_width=True):
                 try:
                     supabase.auth.sign_up({
                         "email": st.session_state['signup_email'],
-                        "password": "temp",
+                        "password": "temp",  # Password already set, just resending OTP
                         "options": {"data": {"full_name": st.session_state['signup_email'].split('@')[0]}}
                     })
-                    st.success("✅ New code sent! Check your inbox.")
+                    st.success("✅ New verification code sent! Check your inbox.")
                 except Exception as e:
-                    st.error(f"Failed to resend: {str(e)}")
+                    st.error(f"❌ Failed to resend: {str(e)}")
 
 # ==========================================
 # 4. CREW DEFINITIONS (INDUSTRY-AGNOSTIC)
