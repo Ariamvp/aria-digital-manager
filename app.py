@@ -32,7 +32,9 @@ def call_openai(prompt):
 def create_poster(template_file, headline, subtext, business_name, font_path):
     """Overlays text onto a background template using Pillow."""
     try:
-        img_path = f"assets/{template_file}"
+                # Get the exact folder where app.py is located
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        img_path = os.path.join(base_dir, "assets", template_file)
         image = Image.open(img_path).convert("RGBA")
         draw = ImageDraw.Draw(image)
         width, height = image.size
