@@ -187,7 +187,7 @@ with tab_poster:
                     
                     # Only try to display if poster was created successfully
                     if poster_image is not None:
-                        st.image(poster_image, caption="Your Generated Poster", use_column_width=True)
+                        st.image(poster_image, caption="Your Generated Poster", use_container_width=True)
                         buf = io.BytesIO()
                         poster_image.save(buf, format="JPEG", quality=90)
                         st.download_button(label="📥 Download Image", data=buf.getvalue(), file_name=f"{business_name}_poster.jpg", mime="image/jpeg", use_container_width=True, key="poster_download")
