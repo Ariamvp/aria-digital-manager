@@ -32,20 +32,30 @@ def call_openai(prompt):
 def create_poster(template_file, headline, subtext, business_name, font_path):
     """Overlays text onto a background template using Pillow."""
     try:
-                # Get the exact folder where app.py is located
         base_dir = os.path.dirname(os.path.abspath(__file__))
         img_path = os.path.join(base_dir, "assets", template_file)
+        
+        # Check if template exists
+        if not os.path.exists(img_path):
+            st.error(f"Template not found: {img_path}")
+            return None
+            
         image = Image.open(img_path).convert("RGBA")
         draw = ImageDraw.Draw(image)
         width, height = image.size
         
+        # Try to load custom font, fall back to default if not found
         try:
-            font_headline = ImageFont.truetype(font_path, 85)
-            font_subtext = ImageFont.truetype(font_path, 45)
-            font_brand = ImageFont.truetype(font_path, 35)
-        except:
-            st.error("Font file not found! Check assets/fonts folder.")
-            return None
+            full_font_path = os.path.join(base_dir, font_path)
+            font_headline = ImageFont.truetype(full_font_path, 85)
+            font_subtext = ImageFont.truetype(full_font_path, 45)
+            font_brand = ImageFont.truetype(full_font_path, 35)
+        except Exception as font_error:
+            # Use default font if custom font not found
+            font_headline = ImageFont.load_default()
+            font_subtext = ImageFont.load_default()
+            font_brand = ImageFont.load_default()
+            st.warning(f"⚠️ Using default font. Custom font path: {full_font_path}")
 
         def draw_centered_text(y_pos, text, font, color, shadow_color="black"):
             lines = textwrap.fill(text, width=20).split('\n')
@@ -138,13 +148,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="main-header"> A.R.I.A. Digital Manager</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">🔥 A.R.I.A. Digital Manager</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Your AI Marketing & Reputation Assistant</div>', unsafe_allow_html=True)
 
 # ==========================================
 # TABS NAVIGATION
 # ==========================================
-tab_poster, tab_review, tab_inquiry = st.tabs([" Poster Maker", "⭐ Review Responder", "️ Inquiry Responder"])
+tab_poster, tab_review, tab_inquiry = st.tabs(["🎨 Poster Maker", "⭐ Review Responder", " Inquiry Responder"])
 
 # ==========================================
 # TAB 1: POSTER MAKER
@@ -158,9 +168,9 @@ with tab_poster:
                                      help="Enter your business or shop name")
         template_choice = st.selectbox("Choose Template", ["festive.png", "sale.png", "clean.png"], key="poster_template",
                                       help="Select a background template style")
-        headline = st.text_input("Main Headline (Big Text)", value="50% OFF", max_chars=80, key="poster_headline",
+        headline = st.text_input("Main Headline (Big Text)", value="50% OFF", max_chars=50, key="poster_headline",
                                 help="Short, punchy text that grabs attention")
-        subtext = st.text_input("Subtext (Details)", value="This Weekend Only!", max_chars=250, key="poster_subtext",
+        subtext = st.text_input("Subtext (Details)", value="This Weekend Only!", max_chars=100, key="poster_subtext",
                                help="Additional details about your offer")
         platform = st.selectbox("Target Platform", ["Instagram", "Facebook", "WhatsApp Status"], key="poster_platform",
                                help="Where will you post this?")
@@ -172,19 +182,20 @@ with tab_poster:
                 st.error("Please fill in Business Name and Headline.")
             else:
                 with st.spinner("Designing poster..."):
-                    font_path = "assets/fonts/Montserrat-Bold.ttf"
+                    font_path = "assets/fonts/Poppins-Bold.ttf"  # Updated to Poppins
                     poster_image = create_poster(template_choice, headline, subtext, business_name, font_path)
                     
-                    if poster_image:
+                    # Only try to display if poster was created successfully
+                    if poster_image is not None:
                         st.image(poster_image, caption="Your Generated Poster", use_column_width=True)
                         buf = io.BytesIO()
                         poster_image.save(buf, format="JPEG", quality=90)
                         st.download_button(label="📥 Download Image", data=buf.getvalue(), file_name=f"{business_name}_poster.jpg", mime="image/jpeg", use_container_width=True, key="poster_download")
 
-                with st.spinner("Writing AI Caption..."):
-                    caption = call_openai(f"Write a short, engaging Instagram caption for {business_name} about '{headline} - {subtext}'. Include 5 relevant hashtags.")
-                    st.text_area("AI Caption:", value=caption, height=150, key="poster_caption",
-                                help="Copy this caption for your social media post")
+                        with st.spinner("Writing AI Caption..."):
+                            caption = call_openai(f"Write a short, engaging Instagram caption for {business_name} about '{headline} - {subtext}'. Include 5 relevant hashtags.")
+                            st.text_area("AI Caption:", value=caption, height=150, key="poster_caption",
+                                        help="Copy this caption for your social media post")
 
 # ==========================================
 # TAB 2: REVIEW RESPONDER
