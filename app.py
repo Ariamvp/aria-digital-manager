@@ -1,1387 +1,194 @@
-import os
-import json
-import re
-import uuid
-from datetime import datetime, timezone
-from datetime import datetime, timezone, timedelta  # Add timedelta
 import streamlit as st
+import os
+from PIL import Image, ImageDraw, ImageFont
+import openai
+import textwrap
+import io
 from dotenv import load_dotenv
-from crewai import Agent, Task, Crew, Process, LLM
-from crewai_tools import TavilySearchTool, ScrapeWebsiteTool
-from db import send_telegram_alert
-from db import supabase, supabase_admin, get_user_settings, save_user_settings, log_usage, get_usage_stats
 
-# ==========================================
-# 1. INITIALIZATION
-# ==========================================
 load_dotenv()
-st.set_page_config(page_title="A.R.I.A. Dashboard", page_icon="🔥", layout="wide")
+
+# Initialize OpenAI (Make sure OPENAI_API_KEY is in your .env file)
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+st.set_page_config(page_title="A.R.I.A. Digital Manager", layout="centered", page_icon="🚀")
 
 # ==========================================
-# 2. CUSTOM CSS
+# HELPER FUNCTIONS
+# ==========================================
+def call_openai(prompt):
+    """Generic function to call OpenAI quickly and cheaply."""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini", # Extremely cheap and fast
+            messages=[{"role": "system", "content": "You are an expert marketing and customer service assistant for Indian small businesses. Keep responses professional, polite, and concise."},
+                      {"role": "user", "content": prompt}],
+            temperature=0.7
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"Error: {e}"
+
+def create_poster(template_file, headline, subtext, business_name, font_path):
+    """Overlays text onto a background template using Pillow."""
+    try:
+        img_path = f"assets/{template_file}"
+        image = Image.open(img_path).convert("RGBA")
+        draw = ImageDraw.Draw(image)
+        width, height = image.size
+        
+        # Load fonts
+        try:
+            font_headline = ImageFont.truetype(font_path, 85)
+            font_subtext = ImageFont.truetype(font_path, 45)
+            font_brand = ImageFont.truetype(font_path, 35)
+        except:
+            st.error("Font file not found! Check assets folder.")
+            return None
+
+        def draw_centered_text(y_pos, text, font, color, shadow_color="black"):
+            lines = textwrap.fill(text, width=20).split('\n')
+            line_height = font.getbbox("A")[3] + 10
+            total_height = len(lines) * line_height
+            current_y = y_pos - (total_height / 2)
+
+            for line in lines:
+                bbox = draw.textbbox((0, 0), line, font=font)
+                text_width = bbox[2] - bbox[0]
+                x = (width - text_width) / 2
+                draw.text((x+3, current_y+3), line, font=font, fill=shadow_color)
+                draw.text((x, current_y), line, font=font, fill=color)
+                current_y += line_height
+
+        draw_centered_text(height * 0.35, headline.upper(), font_headline, "white")
+        draw_centered_text(height * 0.55, subtext, font_subtext, "#FFD700") 
+        draw_centered_text(height * 0.85, business_name.upper(), font_brand, "white")
+
+        return image.convert("RGB")
+    except Exception as e:
+        st.error(f"Error creating poster: {e}")
+        return None
+
+# ==========================================
+# CUSTOM CSS
 # ==========================================
 st.markdown("""
 <style>
-    /* === GLOBAL === */
-    .stApp { 
-        background-color: #F8FAFC; 
-        font-family: 'Inter', -apple-system, sans-serif; 
+    .stApp { background-color: #F8FAFC; }
+    .main-header { font-size: 2.2rem; color: #0F172A; font-weight: 800; text-align: center; margin-bottom: 0.5rem; }
+    .sub-header { font-size: 1.1rem; color: #64748B; text-align: center; margin-bottom: 2rem; }
+    .stButton > button {
+        background: linear-gradient(135deg, #16A34A 0%, #15803D 100%);
+        color: white; border: none; border-radius: 8px; font-weight: 700; padding: 12px 24px; width: 100%;
     }
-    
-    /* Hide Streamlit defaults */
-    #MainMenu {visibility: hidden;} 
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    
-    /* === TABS === */
-    .stTabs [data-baseweb="tab-list"] { 
-        gap: 8px; 
-        background-color: transparent;
-        padding: 0;
-        border-bottom: 2px solid #E2E8F0;
-    }
-    .stTabs [data-baseweb="tab"] { 
-        background-color: white;
-        border-radius: 8px 8px 0 0;
-        padding: 12px 24px;
-        font-weight: 600;
-        color: #64748B;
-        border: 2px solid #E2E8F0;
-        border-bottom: none;
-        transition: all 0.2s;
-    }
-    .stTabs [data-baseweb="tab"]:hover {
-        border-color: #16A34A;
-        color: #16A34A;
-    }
-    .stTabs [aria-selected="true"] { 
-        background-color: #16A34A;
-        color: white;
-        border-color: #16A34A;
-        border-bottom: 2px solid #16A34A;
-    }
-    
-    /* === CARDS & CONTAINERS === */
-    .dashboard-card, .stForm {
-        background: white;
-        border: 2px solid #E2E8F0;
-        border-radius: 12px;
-        padding: 28px;
-        margin-bottom: 24px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
-    }
-    
-    /* === INPUT FIELDS - HIGH VISIBILITY === */
-    .stTextInput > div > div > input, 
-    .stTextArea > div > div > textarea, 
-    .stSelectbox > div > div > div,
-    .stNumberInput > div > div > input {
-        background-color: #FFFFFF !important;
-        color: #0F172A !important;
-        border: 2px solid #CBD5E1 !important;
-        border-radius: 8px !important;
-        padding: 12px 16px !important;
-        font-size: 14px !important;
-        font-weight: 500 !important;
-        transition: all 0.2s !important;
-    }
-    
-    /* Input focus state - Green highlight */
-    .stTextInput > div > div > input:focus, 
-    .stTextArea > div > div > textarea:focus, 
-    .stSelectbox > div > div > div:focus,
-    .stNumberInput > div > div > input:focus {
-        border-color: #16A34A !important;
-        border-width: 3px !important;
-        box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.1) !important;
-        outline: none !important;
-    }
-    
-    /* Input hover state */
-    .stTextInput > div > div > input:hover, 
-    .stTextArea > div > div > textarea:hover {
-        border-color: #16A34A !important;
-    }
-    
-    /* Labels */
-    .stTextInput label, .stTextArea label, .stSelectbox label, .stRadio label {
-        color: #374151 !important;
-        font-weight: 700 !important;
-        font-size: 14px !important;
-        margin-bottom: 8px !important;
-        display: block !important;
-    }
-    
-    /* === BUTTONS === */
-    .stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #16A34A 0%, #15803D 100%) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 8px !important;
-        font-weight: 700 !important;
-        font-size: 15px !important;
-        padding: 14px 28px !important;
-        box-shadow: 0 4px 6px rgba(22, 163, 74, 0.2) !important;
-        transition: all 0.2s !important;
-    }
-    .stButton > button[kind="primary"]:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 6px 12px rgba(22, 163, 74, 0.3) !important;
-    }
-    
-    .stButton > button[kind="secondary"] {
-        background-color: white !important;
-        color: #16A34A !important;
-        border: 2px solid #16A34A !important;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        padding: 12px 24px !important;
-        transition: all 0.2s !important;
-    }
-    .stButton > button[kind="secondary"]:hover {
-        background-color: #F0FDF4 !important;
-        border-color: #15803D !important;
-    }
-    
-    /* === METRICS === */
-    .metric-card {
-        background: white;
-        border: 2px solid #E2E8F0;
-        border-radius: 12px;
-        padding: 24px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
-        transition: all 0.2s;
-    }
-    .metric-card:hover {
-        border-color: #16A34A;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.08);
-        transform: translateY(-2px);
-    }
-    .metric-label { font-size: 13px; color: #64748B; margin-bottom: 8px; font-weight: 600; }
-    .metric-value { font-size: 32px; font-weight: 800; color: #0F172A; }
-    .metric-trend { font-size: 12px; color: #16A34A; margin-top: 4px; font-weight: 600; }
-    
-    /* === SECTION HEADERS === */
-    h1, h2, h3 {
-        color: #0F172A !important;
-        font-weight: 700 !important;
-    }
-    
-    /* === RADIO BUTTONS === */
-    .stRadio > div {
-        background: white;
-        border: 2px solid #E2E8F0;
-        border-radius: 8px;
-        padding: 12px;
-    }
-    
-    /* === CHAT MESSAGES === */
-    .chat-message {
-        padding: 16px;
-        border-radius: 12px;
-        margin-bottom: 16px;
-        border: 2px solid #E2E8F0;
-    }
-    .user-message {
-        background: #F0FDF4;
-        border-color: #16A34A;
-    }
-    .ai-message {
-        background: #F8FAFC;
-        border-color: #CBD5E1;
-    }
-    
-    /* === QUICK ACTION BUTTONS === */
-    div[data-testid="stHorizontalBlock"] button[kind="secondary"] {
-        border: 2px solid #E2E8F0 !important;
-        background: white !important;
-        color: #374151 !important;
-        font-weight: 600 !important;
-        padding: 14px !important;
-        border-radius: 8px !important;
-        transition: all 0.2s !important;
-    }
-    div[data-testid="stHorizontalBlock"] button[kind="secondary"]:hover {
-        border-color: #16A34A !important;
-        background: #F0FDF4 !important;
-        color: #16A34A !important;
-        transform: translateY(-2px);
-    }
-    
-    /* === FORM CONTAINERS === */
-    div[data-testid="stForm"] {
-        border: 2px solid #E2E8F0 !important;
-        border-radius: 12px !important;
-        padding: 24px !important;
-        background: white !important;
-    }
-    
-    /* === SLIDER === */
-    .stSlider > div {
-        background: white;
-        border: 2px solid #E2E8F0;
-        border-radius: 8px;
-        padding: 12px;
-    }
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
+    .stTabs [data-baseweb="tab"] { background-color: white; border-radius: 8px 8px 0 0; padding: 12px 24px; font-weight: 600; }
+    .stTabs [aria-selected="true"] { background-color: #16A34A; color: white; }
 </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# 3. AUTHENTICATION (Email + Password + OTP Flow)
-# ==========================================
-from db import send_telegram_alert
-
-def check_trial(user):
-    """Check if user's trial is still active"""
-    try:
-        res = supabase_admin.table("profiles").select("trial_ends_at, role").eq("id", user.id).execute()
-        if not res.data: 
-            return True  # No profile found, allow access
-        user_data = res.data[0]
-        if user_data.get('role') == 'admin': 
-            return True  # Admins have unlimited access
-        trial_end = user_data.get('trial_ends_at')
-        if trial_end:
-            trial_end_dt = datetime.fromisoformat(trial_end.replace('Z', '+00:00'))
-            if datetime.now(timezone.utc) < trial_end_dt: 
-                return True  # Trial still active
-        return False  # Trial expired
-    except Exception as e:
-        print(f"Error checking trial: {e}")
-        return True  # Allow access if check fails
-
-def get_user_role(user_id):
-    """Get user's role from database"""
-    try:
-        res = supabase_admin.table("profiles").select("role").eq("id", user_id).execute()
-        if res.data: 
-            return res.data[0].get('role', 'user')
-        return 'user'
-    except: 
-        return 'user'
-
-def login_page():
-    st.title("🔥 Welcome to A.R.I.A.")
-    st.markdown("Your Autonomous Revenue & Intelligence Agent.")
-    
-    tab_login, tab_signup = st.tabs(["Login", "Sign Up"])
-    
-    # --- LOGIN TAB ---
-    with tab_login:
-        st.markdown("### Existing User Login")
-        email = st.text_input("Email Address", key="login_email")
-        password = st.text_input("Password", type="password", key="login_password")
-        
-        if st.button("Login", type="primary", use_container_width=True):
-            try:
-                res = supabase.auth.sign_in_with_password({"email": email, "password": password})
-                st.session_state['user'] = res.user
-                st.session_state['session'] = res.session
-                st.rerun()
-            except Exception as e:
-                st.error(f"Login failed: Invalid email or password.")
-                send_telegram_alert(f"🚨 <b>Login Error</b>\n Email: <code>{email}</code>\n❌ Error: {str(e)}")
-    
-    # --- SIGN UP TAB (Email + Password → OTP) ---
-    with tab_signup:
-        # Initialize signup state
-        if 'signup_step' not in st.session_state:
-            st.session_state['signup_step'] = 1
-            st.session_state['signup_email'] = ""
-        
-        # STEP 1: Get Email + Password
-        if st.session_state['signup_step'] == 1:
-            st.markdown("### Create Your Account")
-            st.caption("Enter your details to get started.")
-            
-            email = st.text_input("Email Address", key="signup_email_input")
-            pwd1 = st.text_input("Password (min 6 characters)", type="password", key="signup_pwd1")
-            pwd2 = st.text_input("Confirm Password", type="password", key="signup_pwd2")
-            
-            if st.button("Send Verification Code", type="primary", use_container_width=True):
-                # Validation
-                if not email or "@" not in email:
-                    st.error("Please enter a valid email address.")
-                elif len(pwd1) < 6:
-                    st.error("Password must be at least 6 characters.")
-                elif pwd1 != pwd2:
-                    st.error("Passwords do not match!")
-                else:
-                    try:
-                        # Create account with email + password (sends OTP automatically)
-                        res = supabase.auth.sign_up({
-                            "email": email,
-                            "password": pwd1,
-                            "options": {"data": {"full_name": email.split('@')[0]}}
-                        })
-                        
-                        st.session_state['signup_email'] = email
-                        st.session_state['signup_step'] = 2
-                        st.success(f"✅ Verification code sent to {email}! Check your inbox (and spam folder).")
-                        st.info("The code is valid for 60 minutes.")
-                        st.rerun()
-                        
-                    except Exception as e:
-                        error_msg = str(e)
-                        if "already registered" in error_msg.lower():
-                            st.error("This email is already registered. Please login instead.")
-                        else:
-                            st.error(f"Signup failed: {error_msg}")
-                        send_telegram_alert(f"🚨 <b>Signup Error</b>\n👤 Email: <code>{email}</code>\n❌ Error: {error_msg}")
-        
-        # STEP 2: Verify OTP
-        elif st.session_state['signup_step'] == 2:
-            st.markdown("### ️ Check Your Email")
-            st.success(f"**We've sent a verification code to:**\n📧 **{st.session_state['signup_email']}**")
-            st.info(" **Please check your inbox (and spam folder) and enter the 6-digit code below to confirm your email.**")
-            
-            otp = st.text_input("Enter 6-Digit Verification Code", key="signup_otp", max_chars=6, placeholder="123456")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("✅ Verify & Login", type="primary", use_container_width=True):
-                    if not otp or len(otp) != 6:
-                        st.error("Please enter a valid 6-digit code.")
-                    else:
-                        try:
-                            # Verify OTP and log user in
-                            res = supabase.auth.verify_otp({
-                                "email": st.session_state['signup_email'],
-                                "token": otp,
-                                "type": "signup"
-                            })
-                            
-                            st.session_state['user'] = res.user
-                            st.session_state['session'] = res.session
-                            
-                            # Notify admin
-                            send_telegram_alert(f"✅ <b>New User Signup!</b>\n👤 Email: <code>{st.session_state['signup_email']}</code>\n🆔 User ID: <code>{res.user.id}</code>\n🕐 Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                            
-                            st.success("🎉 Email verified! Logging you in...")
-                            
-                            # Clear signup state
-                            st.session_state['signup_step'] = 1
-                            st.session_state['signup_email'] = ""
-                            
-                            st.rerun()
-                            
-                        except Exception as e:
-                            st.error("❌ Invalid or expired code. Please check the code and try again.")
-                            send_telegram_alert(f"🚨 <b>OTP Verification Failed</b>\n👤 Email: <code>{st.session_state['signup_email']}</code>\n❌ Error: {str(e)}")
-            
-            with col2:
-                if st.button("← Back to Signup", use_container_width=True):
-                    st.session_state['signup_step'] = 1
-                    st.session_state['signup_email'] = ""
-                    st.rerun()
-            
-            # Resend OTP option
-            st.markdown("---")
-            st.caption("🤔 Didn't receive the code?")
-            if st.button("🔄 Resend Code", use_container_width=True):
-                try:
-                    supabase.auth.sign_up({
-                        "email": st.session_state['signup_email'],
-                        "password": "temp",  # Password already set, just resending OTP
-                        "options": {"data": {"full_name": st.session_state['signup_email'].split('@')[0]}}
-                    })
-                    st.success("✅ New verification code sent! Check your inbox.")
-                except Exception as e:
-                    st.error(f"❌ Failed to resend: {str(e)}")
+st.markdown('<div class="main-header"> A.R.I.A. Digital Manager</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">Your AI Marketing & Reputation Assistant</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 4. CREW DEFINITIONS (INDUSTRY-AGNOSTIC)
+# TABS NAVIGATION
 # ==========================================
-@st.cache_resource
-def create_negotiation_crew():
-    llm = LLM(model="gpt-4o")
-    tavily_tool = TavilySearchTool()
-    researcher = Agent(role="Pricing Analyst", goal="Find competitor pricing.", backstory="Expert analyst.", llm=llm, tools=[tavily_tool], verbose=False)
-    strategist = Agent(role="Procurement Strategist", goal="Develop negotiation leverage.", backstory="Veteran expert.", llm=llm, verbose=False)
-    drafter = Agent(role="Copywriter", goal="Draft professional email.", backstory="Specialist in vendor comms.", llm=llm, verbose=False)
-    qa = Agent(role="QA Director", goal="Format as JSON.", backstory="Ensures JSON format.", llm=llm, verbose=False)
-    return Crew(agents=[researcher, strategist, drafter, qa], tasks=[
-        Task(description="Research {vendor_name} and {current_service}. Find 2-3 competitors with pricing.", expected_output="Competitor summary.", agent=researcher),
-        Task(description="Develop strategy for {vendor_name}. We pay ${monthly_cost}/mo.", expected_output="Strategy.", agent=strategist),
-        Task(description="Draft email to {vendor_name}. Sign as: {contact_info}", expected_output="Draft.", agent=drafter),
-        Task(description='Output strict JSON: {"subject": "...", "body": "..."}', expected_output="JSON", agent=qa)
-    ], process=Process.sequential, verbose=False)
-
-@st.cache_resource
-def create_repurposing_crew():
-    llm = LLM(model="gpt-4o")
-    analyst = Agent(role="Content Strategist", goal="Analyze source material and adapt for any industry", backstory="Master strategist who creates platform-specific content for hospitality, retail, services, FMCG, and more", llm=llm, verbose=False)
-    blog_writer = Agent(role="SEO Content Writer", goal="Write engaging, industry-appropriate content", backstory="Versatile writer who adapts tone for different business types", llm=llm, verbose=False)
-    social_manager = Agent(role="Social Media Expert", goal="Create viral, platform-optimized posts", backstory="Social media specialist for diverse industries", llm=llm, verbose=False)
-    newsletter_writer = Agent(role="Email Marketing Specialist", goal="Write high-converting newsletters", backstory="Email expert who knows what drives engagement", llm=llm, verbose=False)
-    qa = Agent(role="Content QA", goal="Ensure content is professional and on-brand", backstory="Quality checker for all content types", llm=llm, verbose=False)
-    
-    return Crew(agents=[analyst, blog_writer, social_manager, newsletter_writer, qa], tasks=[
-        Task(description="""
-        Analyze this source content:
-        "{source_content}"
-        
-        Target Audience: {target_audience}
-        Industry Context: {industry}
-        
-        Create platform-specific content that:
-        1. Adapts tone to the industry (hospitality=warm, retail=professional, etc.)
-        2. Uses appropriate keywords for SEO
-        3. Includes relevant emojis for social media
-        4. Maintains brand consistency
-        
-        Output as JSON with these keys:
-        - blog: 500-word SEO article
-        - linkedin: Professional post (150 words)
-        - twitter: Thread (3-5 tweets)
-        - instagram: Caption with hashtags (100 words)
-        - newsletter: Email (200 words)
-        """, expected_output="JSON with blog, linkedin, twitter, instagram, newsletter", agent=analyst)
-    ], process=Process.sequential, verbose=False)
-
-@st.cache_resource
-def create_prospect_finder_crew():
-    llm = LLM(model="gpt-4o")
-    tavily_tool = TavilySearchTool()
-    scrape_tool = ScrapeWebsiteTool()
-    finder = Agent(role="Lead Discovery Specialist", goal="Find {category} in {location}.", backstory="Expert B2B lead finder.", llm=llm, tools=[tavily_tool, scrape_tool], verbose=False)
-    qualifier = Agent(role="Lead Qualification Analyst", goal="Format leads as JSON.", backstory="Data formatter.", llm=llm, verbose=False)
-    return Crew(agents=[finder, qualifier], tasks=[
-        Task(description="Search for {category} in {location}. Find {num_leads} businesses. Extract: company, website, contact_name, contact_title, email.", expected_output="JSON array of leads", agent=finder),
-        Task(description="Format leads into strict JSON array.", expected_output="JSON", agent=qualifier)
-    ], process=Process.sequential, verbose=False)
-
-@st.cache_resource
-def create_response_crew():
-    llm = LLM(model="gpt-4o")
-    writer = Agent(role="Business Communication Specialist", goal="Create professional business profiles and inquiry responses for ANY industry", backstory="Expert at adapting communication style to different business types - hospitality, retail, services, FMCG, etc.", llm=llm, verbose=False)
-    return Crew(agents=[writer], tasks=[
-        Task(description="""
-        You received this inquiry: 
-        "{incoming_request}"
-        
-        Business details: 
-        "{raw_business_details}"
-        
-        Business Name: {business_name}
-        Industry: {industry}
-        
-        Generate TWO things:
-        
-        === PART 1: BUSINESS PROFILE/PROPOSAL ===
-        Create a professional profile or proposal that includes:
-        - Overview of the business
-        - Products/Services offered
-        - Key features/benefits
-        - Pricing/packages (if applicable)
-        - Contact information
-        - Call to action
-        
-        IMPORTANT: Adapt the format based on the business type:
-        - For Hotels/Resorts: Include rooms, amenities, rates, location
-        - For Restaurants: Include menu highlights, cuisine type, ambiance
-        - For Retail: Include product categories, brands, special offers
-        - For Services: Include service packages, expertise, portfolio
-        - For FMCG: Include product range, distribution, pricing
-        
-        === PART 2: PROFESSIONAL EMAIL RESPONSE ===
-        Write a concise email (<150 words):
-        1. Extract sender name from inquiry. If blank, use "Valued Customer".
-        2. Start "Dear [Name],"
-        3. Thank them for their inquiry about {business_name}
-        4. Reference their specific question/need
-        5. Say "Please find our detailed information above."
-        6. Include a clear call-to-action
-        7. Sign off professionally using: {contact_info}
-        
-        OUTPUT FORMAT:
-        Profile/Proposal first, then "---EMAIL---" marker, then email.
-        """, expected_output="Profile/Proposal + ---EMAIL--- + Email", agent=writer)
-    ], process=Process.sequential, verbose=False)
-
-@st.cache_resource
-def create_review_crew():
-    llm = LLM(model="gpt-4o")
-    responder = Agent(role="Customer Experience Specialist", goal="Write empathetic, industry-appropriate review responses", backstory="Expert in reputation management for hospitality, retail, restaurants, and service businesses", llm=llm, verbose=False)
-    return Crew(agents=[responder], tasks=[
-        Task(description="""
-        Respond to this {sentiment} review:
-        
-        Reviewer: {reviewer_name}
-        Review: "{review_text}"
-        
-        BUSINESS CONTEXT:
-        - Business Name: {business_name}
-        - Industry: {industry}
-        - Contact: {contact_info}
-        
-        RULES:
-        - If POSITIVE: Thank them warmly, mention specific details they praised, reference what makes your business special (based on industry), invite them back.
-        - If NEGATIVE: Apologize sincerely and specifically, validate their concern without being defensive, explain what you're doing to fix it, offer offline resolution.
-        - If MIXED: Thank them for positive feedback, address concerns professionally, show commitment to improvement.
-        
-        INDUSTRY-SPECIFIC TONE:
-        - Hospitality: Warm, welcoming, personal
-        - Restaurant: Enthusiastic about food, apologetic about service
-        - Retail: Professional, solution-oriented
-        - Services: Expert, reassuring
-        - FMCG: Quality-focused, customer-centric
-        
-        Keep under 150 words. Sign as: {contact_info}
-        """, expected_output="Professional review response", agent=responder)
-    ], process=Process.sequential, verbose=False)
-
-@st.cache_resource
-def create_whatsapp_crew():
-    llm = LLM(model="gpt-4o")
-    expert = Agent(role="WhatsApp Marketing Specialist", goal="Create engaging broadcasts.", backstory="WhatsApp expert.", llm=llm, verbose=False)
-    return Crew(agents=[expert], tasks=[
-        Task(description="""
-        Create WhatsApp broadcast for {business_name}.
-        Type: {broadcast_type}
-        Details: {specific_details}
-        Contact: {contact_info}
-        RULES: Use *asterisks* for bold, emojis (1-2 per line max), keep under 150 words, include clear CTA, add "Reply STOP to unsubscribe".
-        """, expected_output="WhatsApp message", agent=expert)
-    ], process=Process.sequential, verbose=False)
-
-def parse_json_output(raw_output):
-    try:
-        cleaned = re.sub(r'^```json\s*|\s*```$', '', raw_output.strip(), flags=re.MULTILINE)
-        return json.loads(cleaned)
-    except:
-        return {"subject": "Error", "body": raw_output}
+tab_poster, tab_review, tab_inquiry = st.tabs(["🎨 Poster Maker", "⭐ Review Responder", "️ Inquiry Responder"])
 
 # ==========================================
-# 5. AI CHAT ASSISTANT
+# TAB 1: POSTER MAKER
 # ==========================================
-def get_ai_response(user_message, user_settings):
-    msg_lower = user_message.lower()
-    business_name = user_settings.get('business_name', 'your business')
-    
-    if any(word in msg_lower for word in ['hello', 'hi', 'help', 'start', 'begin', 'welcome']):
-        return f"""
-👋 **Welcome to A.R.I.A.!**
+with tab_poster:
+    st.subheader("Create Professional Social Media Posters")
+    col1, col2 = st.columns([1, 1])
 
-I'm your AI assistant, here to help you get the most out of the platform.
-
-**I can help you with:**
-- 🎯 Finding new business leads
-- ✉️ Writing professional responses to leads
-- ⭐ Managing customer reviews
-- 🎨 Creating marketing content
-- 📱 Sending WhatsApp broadcasts
-- 💰 Negotiating with vendors
-
-**Quick Start:**
-1. First, complete your **Business Profile** (tab above)
-2. Then try any of the AI tools
-3. Or ask me anything about how to use them!
-
-**What would you like to do first?**
-"""
-    elif any(word in msg_lower for word in ['lead', 'find', 'customer', 'client', 'prospect']):
-        return "🎯 **Lead Finder** - Your Business Development Tool\n\n**What it does:** Scans the internet for businesses in your target area, verifies emails, and finds contact details.\n\n**How to use:** Click the **Lead Finder** tab, enter your target category and location, and click 'Find Leads'."
-    elif any(word in msg_lower for word in ['review', 'response', 'reply', 'feedback', 'rating']):
-        return "⭐ **Review Responses** - Protect Your Reputation\n\n**What it does:** Reads customer reviews and drafts professional, empathetic responses tailored to your industry.\n\n**How to use:** Click the **Review Responses** tab, paste the review, select sentiment, and generate."
-    elif any(word in msg_lower for word in ['whatsapp', 'broadcast', 'message', 'campaign']):
-        return "📱 **WhatsApp Studio** - Engage Your Customers\n\n**What it does:** Creates engaging WhatsApp broadcast messages with emojis, formatting, and clear CTAs.\n\n**How to use:** Click the **WhatsApp Studio** tab, select broadcast type, enter details, and generate."
-    elif any(word in msg_lower for word in ['content', 'social media', 'post', 'marketing', 'blog']):
-        return "🎨 **Content Studio** - Repurpose Your Content\n\n**What it does:** Takes one piece of content and creates a full week of marketing materials (blogs, social posts, newsletters) adapted to your industry.\n\n**How to use:** Click the **Content Studio** tab, paste your source material, and generate."
-    elif any(word in msg_lower for word in ['vendor', 'negotiate', 'cost', 'price', 'discount']):
-        return "💰 **Negotiator** - Reduce Your Business Costs\n\n**What it does:** Researches competitor pricing and drafts professional negotiation emails to help you save money.\n\n**How to use:** Click the **Negotiator** tab, enter vendor details and current cost, and generate."
-    elif any(word in msg_lower for word in ['response', 'reply', 'lead', 'inquiry', 'customer']):
-        return "✉️ **Response Writer** - Convert Leads to Customers\n\n**What it does:** Creates professional business profiles/proposals and drafts personalized email responses tailored to your industry.\n\n**How to use:** Click the **Response Writer** tab, paste the inquiry, and generate."
-    elif any(word in msg_lower for word in ['profile', 'settings', 'business', 'configure', 'setup']):
-        return "🏢 **Business Profile** - Your Foundation\n\nAll AI tools use your business profile to personalize outputs. Click the **Business Profile** tab, fill in your details (especially Industry), and save."
-    elif any(word in msg_lower for word in ['trial', 'pricing', 'cost', 'upgrade', 'payment']):
-        return "💳 **Pricing & Trial Information**\n\n- ✅ 14-Day Free Trial Active\n- **Professional Plan:** ₹2,999/month (500 AI generations)\n- **Enterprise Plan:** ₹4,999/month (Unlimited)\n\nNo credit card required for trial!"
-    else:
-        return f"""
-🤖 **I'm here to help!**
-
-I can guide you through using any of A.R.I.A.'s features.
-
-**Try asking me:**
-- "How do I find new leads?"
-- "How do I respond to reviews?"
-- "How do I create content?"
-- "How do I send WhatsApp messages?"
-
-Or just tell me what you want to accomplish, and I'll guide you!
-"""
-
-# ==========================================
-# 6. MAIN APP LOGIC
-# ==========================================
-if 'user' not in st.session_state:
-    login_page()
-    st.stop()
-
-if not check_trial(st.session_state['user']):
-    st.error("Your 14-day free trial has expired. Please upgrade.")
-    st.stop()
-
-user_settings = get_user_settings(st.session_state['user'].id) or {}
-user_role = get_user_role(st.session_state['user'].id)
-user_email = st.session_state['user'].email
-
-if 'chat_messages' not in st.session_state:
-    st.session_state['chat_messages'] = [
-        {"role": "assistant", "content": f"""👋 **Welcome to A.R.I.A., {user_email.split('@')[0]}!**\n\nI'm your AI assistant. I can help you:\n- 🎯 Find new business leads\n- ✉️ Write professional responses\n- ⭐ Manage customer reviews\n- 🎨 Create marketing content\n- 📱 Send WhatsApp broadcasts\n- 💰 Negotiate with vendors\n\n**What would you like to do first?**"""}
-    ]
-
-col1, col2 = st.columns([6, 1])
-with col1:
-    st.markdown(f"<h2 style='margin:0; padding:20px 0;'>🔥 A.R.I.A. Command Center</h2>", unsafe_allow_html=True)
-with col2:
-    if st.button("🚪 Logout", use_container_width=True):
-        supabase.auth.sign_out()
-        st.session_state.clear()
-        st.rerun()
-
-st.markdown("---")
-
-tabs = st.tabs([
-    "📊 Dashboard",
-    "🏢 Business Profile",
-    "💬 AI Chat",
-    "🎯 Lead Finder",
-    "✉️ Response Writer",
-    "🎨 Content Studio",
-    "⭐ Review Responses",
-    "📱 WhatsApp Studio",
-    "🤝 Negotiator",
-    "🎊 Festival Bookings" 
-])
-
-# TAB 1: DASHBOARD
-with tabs[0]:
-    st.header("Dashboard")
-    st.markdown("Welcome back! Here's what's happening with your business today.")
-    
-    stats = get_usage_stats(st.session_state['user'].id)
-    
-    col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.markdown(f'<div class="metric-card"><div class="metric-label">Total Leads</div><div class="metric-value">{stats["total_leads"]}</div><div class="metric-trend">↑ Tracked automatically</div></div>', unsafe_allow_html=True)
+        business_name = st.text_input("Business Name", value="My Bakery", key="poster_biz")
+        template_choice = st.selectbox("Choose Template", ["festive.png", "sale.png", "clean.png"], key="poster_temp")
+        headline = st.text_input("Main Headline (Big Text)", value="50% OFF", max_chars=15, key="poster_head")
+        subtext = st.text_input("Subtext (Details)", value="This Weekend Only!", max_chars=40, key="poster_sub")
+        platform = st.selectbox("Target Platform", ["Instagram", "Facebook", "WhatsApp Status"], key="poster_plat")
+        gen_poster_btn = st.button("✨ Generate Poster & Caption", type="primary")
+
     with col2:
-        st.markdown(f'<div class="metric-card"><div class="metric-label">AI Generations</div><div class="metric-value">{stats["total_generations"]}</div><div class="metric-trend">↑ All modules combined</div></div>', unsafe_allow_html=True)
-    with col3:
-        st.markdown(f'<div class="metric-card"><div class="metric-label">Emails Sent</div><div class="metric-value">{stats["emails_sent"]}</div><div class="metric-trend">↑ Tracked automatically</div></div>', unsafe_allow_html=True)
-    with col4:
-        st.markdown('<div class="metric-card"><div class="metric-label">Cost Savings</div><div class="metric-value">₹0</div><div class="metric-trend">Start using AI to save!</div></div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="dashboard-card" style="margin-top:24px;"><h3>Recent Activity</h3><p style="color:#64748B;">Your AI agents are working autonomously. Check the modules below to see drafts and approvals.</p></div>', unsafe_allow_html=True)
+        if gen_poster_btn:
+            if not headline or not business_name:
+                st.error("Please fill in Business Name and Headline.")
+            else:
+                with st.spinner("Designing poster..."):
+                    font_path = "assets/fonts/Montserrat-Bold.ttf" 
+                    poster_image = create_poster(template_choice, headline, subtext, business_name, font_path)
+                    
+                    if poster_image:
+                        st.image(poster_image, caption="Your Generated Poster", use_column_width=True)
+                        buf = io.BytesIO()
+                        poster_image.save(buf, format="JPEG", quality=90)
+                        st.download_button(label="📥 Download Image", data=buf.getvalue(), file_name=f"{business_name}_poster.jpg", mime="image/jpeg", use_container_width=True)
 
-# TAB 2: BUSINESS PROFILE
-with tabs[1]:
-    st.header("Business Profile")
-    st.markdown("Configure your business details to personalize all AI outputs.")
-    
-    with st.form("business_form", clear_on_submit=False):
-        col1, col2 = st.columns(2)
-        with col1:
-            biz_name = st.text_input("Business Name *", value=user_settings.get('business_name', ''))
-            industry = st.selectbox("Industry", ["Hospitality", "Food/FMCG", "Service", "Retail", "Other"], 
-                                   index=0 if not user_settings.get('industry') else 
-                                   ["Hospitality", "Food/FMCG", "Service", "Retail", "Other"].index(user_settings.get('industry', 'Hospitality')))
-            location = st.text_input("Primary Location *", value=user_settings.get('location', ''))
-        with col2:
-            contact_info = st.text_input("Contact Info (Name | Phone | Email) *", value=user_settings.get('contact_info', ''))
-            biz_pitch = st.text_area("Core Pitch *", height=100, value=user_settings.get('business_pitch', ''))
-        
-        st.markdown("---")
-        st.subheader("🔐 Integration Credentials")
-        st.markdown("*These will be encrypted before saving to the database*")
-        
-        col3, col4 = st.columns(2)
-        with col3:
-            gmail_pw = st.text_input("Gmail App Password", type="password", value=user_settings.get('gmail_app_password', ''), help="Enter your Gmail App Password")
-            tg_token = st.text_input("Telegram Bot Token", type="password", value=user_settings.get('telegram_bot_token', ''), help="Get this from @BotFather on Telegram")
-        with col4:
-            tg_chat = st.text_input("Telegram Chat ID", value=user_settings.get('telegram_chat_id', ''), help="Your Telegram chat ID for notifications")
-        
-        submitted = st.form_submit_button("💾 Save Settings", type="primary", use_container_width=True)
-        
-        if submitted:
-            st.info("⏳ Saving... Please wait.")
-            settings_data = {
-                "business_name": biz_name, "industry": industry, "location": location,
-                "contact_info": contact_info, "business_pitch": biz_pitch,
-                "gmail_app_password": gmail_pw, "telegram_bot_token": tg_token, "telegram_chat_id": tg_chat
-            }
-            try:
-                result = save_user_settings(st.session_state['user'].id, settings_data)
-                if result:
-                    st.success("✅ Settings saved successfully and encrypted!")
-                    st.balloons()
-                    st.rerun()
-                else:
-                    st.error("❌ Save failed - no data returned from database")
-            except Exception as e:
-                st.error(f"❌ Error saving settings: {str(e)}")
+                with st.spinner("Writing AI Caption..."):
+                    caption = call_openai(f"Write a short, engaging Instagram caption for {business_name} about '{headline} - {subtext}'. Include 5 relevant hashtags.")
+                    st.text_area("AI Caption:", value=caption, height=150)
 
-# TAB 3: AI CHAT
-with tabs[2]:
-    st.header("💬 AI Chat Assistant")
-    st.markdown("Ask me anything about using A.R.I.A. I'm here to help!")
+# ==========================================
+# TAB 2: REVIEW RESPONDER
+# ==========================================
+with tab_review:
+    st.subheader("Reply to Google/Social Media Reviews")
+    st.markdown("Paste a customer review below, and A.R.I.A. will write a professional, polite response.")
     
-    for message in st.session_state['chat_messages']:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-    
-    st.markdown("### 💡 Quick Questions")
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🎯 How do I find leads?", use_container_width=True):
-            st.session_state['chat_messages'].append({"role": "user", "content": "How do I find leads?"})
-            st.session_state['chat_messages'].append({"role": "assistant", "content": get_ai_response("How do I find leads?", user_settings)})
-            st.rerun()
-        if st.button("⭐ How do I manage reviews?", use_container_width=True):
-            st.session_state['chat_messages'].append({"role": "user", "content": "How do I manage reviews?"})
-            st.session_state['chat_messages'].append({"role": "assistant", "content": get_ai_response("How do I manage reviews?", user_settings)})
-            st.rerun()
+        reviewer_name = st.text_input("Reviewer Name", value="Customer")
+        rating = st.selectbox("Star Rating", [1, 2, 3, 4, 5], index=4)
     with col2:
-        if st.button("📱 How do I send WhatsApp?", use_container_width=True):
-            st.session_state['chat_messages'].append({"role": "user", "content": "How do I send WhatsApp?"})
-            st.session_state['chat_messages'].append({"role": "assistant", "content": get_ai_response("How do I send WhatsApp?", user_settings)})
-            st.rerun()
-        if st.button("🎨 How do I create content?", use_container_width=True):
-            st.session_state['chat_messages'].append({"role": "user", "content": "How do I create content?"})
-            st.session_state['chat_messages'].append({"role": "assistant", "content": get_ai_response("How do I create content?", user_settings)})
-            st.rerun()
+        biz_name_review = st.text_input("Your Business Name", value="My Bakery")
+        owner_name = st.text_input("Your Name (for sign-off)", value="Manager")
+
+    review_text = st.text_area("Paste the Customer Review Here", height=150, placeholder="e.g., The food was good but the service was very slow...")
     
-    st.markdown("---")
-    if prompt := st.chat_input("Type your question here..."):
-        st.session_state['chat_messages'].append({"role": "user", "content": prompt})
-        st.session_state['chat_messages'].append({"role": "assistant", "content": get_ai_response(prompt, user_settings)})
-        st.rerun()
+    if st.button("✨ Generate Professional Reply", type="primary"):
+        if review_text:
+            with st.spinner("Writing response..."):
+                prompt = f"""
+                Act as the owner of {biz_name_review}. 
+                A customer named {reviewer_name} gave us {rating} stars and wrote: "{review_text}"
+                
+                Write a polite, professional reply. 
+                - If rating is 4 or 5: Thank them warmly and invite them back.
+                - If rating is 1, 2, or 3: Apologize sincerely, acknowledge their specific complaint, and offer to make it right.
+                Keep it under 100 words. Sign off as {owner_name}.
+                """
+                response = call_openai(prompt)
+                st.success("Reply Generated!")
+                st.text_area("Copy this reply:", value=response, height=200)
+
+# ==========================================
+# TAB 3: INQUIRY RESPONDER
+# ==========================================
+with tab_inquiry:
+    st.subheader("Reply to Customer Inquiries (WhatsApp/Email)")
+    st.markdown("Paste a customer question, and A.R.I.A. will draft a sales-focused reply.")
     
-    if len(st.session_state['chat_messages']) > 1:
-        if st.button("🗑️ Clear Chat", type="secondary"):
-            st.session_state['chat_messages'] = [{"role": "assistant", "content": f"👋 **Welcome to A.R.I.A., {user_email.split('@')[0]}!**\n\nI'm your AI assistant. I can help you:\n- 🎯 Find new business leads\n- ✉️ Write professional responses\n- ⭐ Manage customer reviews\n- 🎨 Create marketing content\n- 📱 Send WhatsApp broadcasts\n- 💰 Negotiate with vendors\n\n**What would you like to do first?**"}]
-            st.rerun()
+    col1, col2 = st.columns(2)
+    with col1:
+        customer_name = st.text_input("Customer Name", value="Friend")
+        biz_name_inq = st.text_input("Your Business Name", value="My Bakery")
+    with col2:
+        product_service = st.text_input("What do you sell?", value="Cakes and Pastries")
+        contact_info = st.text_input("Your Phone/Address", value="Call us at 9876543210")
 
-# TAB 4: LEAD FINDER
-with tabs[3]:
-    st.header("Lead Finder")
-    st.markdown("Find real businesses with verified emails in your target market.")
-    if not user_settings.get('business_pitch'):
-        st.warning("⚠️ Complete Business Profile first!")
-    else:
-        with st.form("leadgen_form"):
-            col1, col2 = st.columns(2)
-            with col1: category = st.text_input("Target Category", value="boutique hotels")
-            with col2: location_search = st.text_input("Location", value=user_settings.get('location', ''))
-            num_leads = st.slider("Number of Leads", 3, 10, 5)
-            if st.form_submit_button("🔍 Find Leads", type="primary"):
-                log_usage(st.session_state['user'].id, 'leadgen')
-                with st.spinner("Searching..."):
-                    crew = create_prospect_finder_crew()
-                    result = crew.kickoff(inputs={"category": category, "location": location_search, "num_leads": num_leads})
-                    st.success("✅ Leads Found!")
-                    st.code(result.raw, language="json")
-
-# TAB 5: RESPONSE WRITER
-with tabs[4]:
-    st.header("Response Writer")
-    st.markdown("Generate professional business profiles/proposals and reply emails.")
-    with st.form("response_form"):
-        incoming = st.text_area("Incoming Lead Request", height=100)
-        raw_details = st.text_area("Your Business Details", height=150, value=user_settings.get('business_pitch', ''))
-        if st.form_submit_button("✨ Generate Response", type="primary"):
-            log_usage(st.session_state['user'].id, 'response')
-            with st.spinner("Crafting..."):
-                crew = create_response_crew()
-                result = crew.kickoff(inputs={
-                    "incoming_request": incoming, 
-                    "raw_business_details": raw_details, 
-                    "business_name": user_settings.get('business_name', 'Your Business'), 
-                    "industry": user_settings.get('industry', 'General'),
-                    "contact_info": user_settings.get('contact_info', '')
-                })
-                st.success("✅ Generated!")
-                parts = result.raw.split("---EMAIL---")
-                st.markdown(parts[0])
-                if len(parts) > 1:
-                    st.divider()
-                    st.markdown(parts[1])
-
-# TAB 6: CONTENT STUDIO
-with tabs[5]:
-    st.header("Content Studio")
-    st.markdown("Turn one piece of content into a full week of marketing materials.")
-    with st.form("content_form"):
-        st.markdown("### 📝 Source Material")
-        source = st.text_area("Paste your content here", height=150, placeholder="Paste your blog post, video transcript, social media caption, or describe your image/video here...")
-        uploaded_file = st.file_uploader("OR upload an image/video", type=['jpg', 'jpeg', 'png', 'mp4', 'mov'], help="Upload a photo or video, then describe what it shows in the text box above")
-        
-        if uploaded_file is not None:
-            st.success(f"✅ Uploaded: {uploaded_file.name}")
-            st.info("💡 **Tip:** Now describe what's in this image/video in the text box above, and A.R.I.A. will create content around it!")
-        
-        audience = st.text_input("Target Audience", placeholder="e.g., Couples and families looking for peaceful getaway")
-        
-        if st.form_submit_button("🔄 Repurpose Content", type="primary"):
-            if not source and uploaded_file is None:
-                st.error("⚠️ Please either paste text content OR upload a file with a description!")
-            elif not source and uploaded_file is not None:
-                st.error("⚠️ You uploaded a file but didn't describe it. Please add a description in the text box above.")
-            else:
-                log_usage(st.session_state['user'].id, 'content')
-                with st.spinner("Analyzing..."):
-                    full_source = f"[Image/Video: {uploaded_file.name}] {source}" if uploaded_file is not None else source
-                    crew = create_repurposing_crew()
-                    result = crew.kickoff(inputs={"source_content": full_source, "target_audience": audience, "industry": user_settings.get('industry', 'General')})
-                    parsed = parse_json_output(result.raw)
-                    st.success("✅ Content Generated!")
-                    
-                    st.subheader("📝 Blog Post")
-                    st.markdown(parsed.get('blog', 'Not generated'))
-                    st.subheader("💼 LinkedIn Post")
-                    st.markdown(parsed.get('linkedin', 'Not generated'))
-                    st.subheader("🐦 Twitter Thread")
-                    st.markdown(parsed.get('twitter', 'Not generated'))
-                    st.subheader("📸 Instagram Caption")
-                    st.markdown(parsed.get('instagram', 'Not generated'))
-                    st.subheader("📧 Newsletter Email")
-                    st.markdown(parsed.get('newsletter', 'Not generated'))
-
-# TAB 7: REVIEW RESPONSES
-with tabs[6]:
-    st.header("Review Responses")
-    st.markdown("Instantly generate empathetic, brand-safe responses to reviews.")
-    with st.form("review_form"):
-        col1, col2 = st.columns(2)
-        with col1: reviewer = st.text_input("Reviewer Name")
-        with col2: sentiment = st.radio("Sentiment", ["Positive", "Negative", "Mixed"], horizontal=True)
-        review_text = st.text_area("Review Text", height=120)
-        if st.form_submit_button("✨ Generate Response", type="primary"):
-            log_usage(st.session_state['user'].id, 'review')
-            with st.spinner("Writing..."):
-                crew = create_review_crew()
-                result = crew.kickoff(inputs={
-                    "reviewer_name": reviewer, 
-                    "review_text": review_text, 
-                    "sentiment": sentiment, 
-                    "business_name": user_settings.get('business_name', 'Your Business'),
-                    "industry": user_settings.get('industry', 'General'),
-                    "contact_info": user_settings.get('contact_info', '')
-                })
-                st.success("✅ Response Generated!")
-                st.markdown(result.raw)
-
-# TAB 8: WHATSAPP STUDIO
-with tabs[7]:
-    st.header("WhatsApp Studio")
-    st.markdown("Create engaging WhatsApp broadcasts for your customer list.")
-    if not user_settings.get('business_name'):
-        st.warning("⚠️ Complete Business Profile first!")
-    else:
-        with st.form("whatsapp_form"):
-            col1, col2 = st.columns(2)
-            with col1: btype = st.selectbox("Broadcast Type", ["Special Offer", "Festival Greeting", "Welcome Back"])
-            with col2: audience = st.selectbox("Target Audience", ["All Customers", "VIP Customers", "New Customers"])
-            details = st.text_area("Offer Details", height=120)
-            if st.form_submit_button("✨ Generate Broadcast", type="primary"):
-                log_usage(st.session_state['user'].id, 'whatsapp')
-                with st.spinner("Creating..."):
-                    crew = create_whatsapp_crew()
-                    result = crew.kickoff(inputs={"business_name": user_settings['business_name'], "broadcast_type": btype, "specific_details": details, "contact_info": user_settings.get('contact_info', '')})
-                    st.success("✅ Broadcast Generated!")
-                    st.code(result.raw, language="text")
-
-# TAB 9: NEGOTIATOR
-with tabs[8]:
-    st.header("Negotiator")
-    st.markdown("Lower your business costs with data-driven negotiation emails.")
-    if not user_settings.get('contact_info'):
-        st.warning("⚠️ Complete Business Profile first!")
-    else:
-        with st.form("vendor_form"):
-            col1, col2 = st.columns(2)
-            with col1:
-                v_name = st.text_input("Vendor Name")
-                v_service = st.text_input("Current Service")
-            with col2:
-                v_cost = st.text_input("Monthly Cost ($)")
-                v_date = st.text_input("Contract End Date")
-            if st.form_submit_button("🚀 Generate Negotiation Email", type="primary"):
-                log_usage(st.session_state['user'].id, 'vendor')
-                with st.spinner("Researching..."):
-                    crew = create_negotiation_crew()
-                    result = crew.kickoff(inputs={"vendor_name": v_name, "current_service": v_service, "monthly_cost": v_cost, "contract_end_date": v_date, "contact_info": user_settings['contact_info']})
-                    parsed = parse_json_output(result.raw)
-                    st.success("✅ Draft Generated!")
-                    st.code(parsed.get('body', ''), language="text")
-
-# TAB 10: FESTIVAL BOOKINGS
-with tabs[9]:
-    st.header("🎊 Festival Pre-Booking Platform")
-    st.markdown("Create and manage festival packages (Onam, Christmas, Eid, etc.)")
+    inquiry_text = st.text_area("Paste the Customer's Question", height=150, placeholder="e.g., Hi, do you have eggless chocolate cakes available for tomorrow?")
     
-    # Initialize session state
-    if 'booking_tab' not in st.session_state:
-        st.session_state['booking_tab'] = 'create'
-    if 'edit_booking_id' not in st.session_state:
-        st.session_state['edit_booking_id'] = None
-    
-    # Tab navigation
-    book_tab1, book_tab2, book_tab3 = st.tabs([" Create Package", "📝 View Bookings", "👤 Customer Booking Form"])
-    
-    # === TAB 1: CREATE PACKAGE ===
-    with book_tab1:
-        st.subheader("Create New Festival Package")
-        
-        with st.form("create_package_form"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                pkg_name = st.text_input("Package Name *", placeholder="e.g., Onam Sadya Deluxe Package")
-                festival = st.selectbox("Festival Type *", ["Onam", "Christmas", "Eid", "Vishu", "New Year", "Other"])
-                pkg_desc = st.text_area("Package Description", height=100, 
-                                       placeholder="Include menu items, inclusions, etc.")
-            
-            with col2:
-                price = st.number_input("Price Per Person (₹) *", min_value=0.0, step=100.0)
-                min_pax = st.number_input("Minimum Persons", min_value=1, value=2)
-                max_pax = st.number_input("Maximum Persons", min_value=1, value=50)
-            
-            col3, col4 = st.columns(2)
-            with col3:
-                avail_from = st.date_input("Available From *", value=datetime.now().date())
-                delivery_avail = st.checkbox("Delivery Available", value=True)
-                if delivery_avail:
-                    del_charge = st.number_input("Delivery Charge (₹)", min_value=0.0, value=50.0)
-                else:
-                    del_charge = 0.0
-            
-            with col4:
-                avail_until = st.date_input("Available Until *", value=datetime.now().date() + timedelta(days=30))
-                pickup_only = st.checkbox("Pickup Only", value=False)
-                capacity = st.number_input("Total Capacity (persons)", min_value=1, value=100)
-            
-            if st.form_submit_button(" Create Package", type="primary", use_container_width=True):
-                if not pkg_name or not festival or price <= 0:
-                    st.error("Please fill in all required fields!")
-                else:
-                    try:
-                        package_data = {
-                            "user_id": st.session_state['user'].id,
-                            "package_name": pkg_name,
-                            "festival_type": festival,
-                            "description": pkg_desc,
-                            "price_per_person": price,
-                            "min_persons": min_pax,
-                            "max_persons": max_pax,
-                            "available_from": avail_from.isoformat(),
-                            "available_until": avail_until.isoformat(),
-                            "delivery_available": delivery_avail,
-                            "delivery_charge": del_charge,
-                            "pickup_only": pickup_only,
-                            "total_capacity": capacity,
-                            "bookings_count": 0,
-                            "is_active": True
-                        }
-                        
-                        res = supabase.table("festival_packages").insert(package_data).execute()
-                        
-                        if res.data:
-                            st.success(f"✅ Package '{pkg_name}' created successfully!")
-                            send_telegram_alert(f"🎊 <b>New Festival Package Created!</b>\n📦 Package: {pkg_name}\n🎉 Festival: {festival}\n💰 Price: ₹{price}/person\n🏢 Business: {user_settings.get('business_name', 'Unknown')}")
-                        else:
-                            st.error("Failed to create package")
-                            
-                    except Exception as e:
-                        st.error(f"Error: {str(e)}")
-                        send_telegram_alert(f"🚨 <b>Package Creation Error</b>\n❌ Error: {str(e)}")
-        
-        # Display existing packages
-        st.markdown("---")
-        st.subheader("Your Active Packages")
-        
-        try:
-            packages_res = supabase.table("festival_packages").select("*").eq("user_id", st.session_state['user'].id).eq("is_active", True).execute()
-            
-            if packages_res.data:
-                for pkg in packages_res.data:
-                    with st.expander(f"📦 {pkg['package_name']} - ₹{pkg['price_per_person']}/person", expanded=False):
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.markdown(f"**Festival:** {pkg['festival_type']}")
-                            st.markdown(f"**Price:** ₹{pkg['price_per_person']} per person")
-                            st.markdown(f"**Min/Max:** {pkg['min_persons']} - {pkg['max_persons']} persons")
-                        with col2:
-                            st.markdown(f"**Available:** {pkg['available_from']} to {pkg['available_until']}")
-                            st.markdown(f"**Delivery:** {'Yes' if pkg['delivery_available'] else 'No'} (+₹{pkg['delivery_charge']})")
-                            st.markdown(f"**Pickup:** {'Yes' if pkg['pickup_only'] else 'No'}")
-                        st.markdown(f"**Description:** {pkg['description']}")
-                        
-                        # Deactivate button
-                        if st.button(f"️ Deactivate {pkg['package_name']}", key=f"deact_{pkg['id']}"):
-                            supabase.table("festival_packages").update({"is_active": False}).eq("id", pkg['id']).execute()
-                            st.success("Package deactivated")
-                            st.rerun()
-            else:
-                st.info("No packages created yet. Create your first package above!")
+    if st.button("✨ Generate Sales Reply", type="primary"):
+        if inquiry_text:
+            with st.spinner("Drafting reply..."):
+                prompt = f"""
+                Act as a sales representative for {biz_name_inq} which sells {product_service}.
+                A customer named {customer_name} asked: "{inquiry_text}"
                 
-        except Exception as e:
-            st.error(f"Error loading packages: {str(e)}")
-    
-    # === TAB 2: VIEW BOOKINGS ===
-    with book_tab2:
-        st.subheader("Festival Bookings Management")
-        
-        # Get all bookings
-        try:
-            bookings_res = supabase.table("festival_bookings").select("""
-                *,
-                festival_packages (
-                    package_name,
-                    festival_type,
-                    price_per_person,
-                    delivery_charge
-                )
-            """).eq("user_id", st.session_state['user'].id).order("created_at", desc=True).execute()
-            
-            if bookings_res.data:
-                # Summary stats
-                total_bookings = len(bookings_res.data)
-                total_revenue = sum(b['total_amount'] for b in bookings_res.data)
-                pending_payments = sum(b['total_amount'] - b['advance_paid'] for b in bookings_res.data if b['payment_status'] != 'paid')
-                
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Total Bookings", total_bookings)
-                col2.metric("Total Revenue", f"₹{total_revenue:,.2f}")
-                col3.metric("Pending Payments", f"₹{pending_payments:,.2f}")
-                
-                st.markdown("---")
-                
-                # Display bookings
-                for booking in bookings_res.data:
-                    pkg_info = booking['festival_packages']
-                    
-                    # Check if this booking is in edit mode
-                    if st.session_state['edit_booking_id'] == booking['id']:
-                        st.markdown(f"### ✏️ Editing Booking: {pkg_info['package_name']}")
-                        
-                        with st.form(f"edit_form_{booking['id']}"):
-                            col1, col2 = st.columns(2)
-                            
-                            with col1:
-                                edit_name = st.text_input("Customer Name *", value=booking['customer_name'], key=f"edit_name_{booking['id']}")
-                                edit_phone = st.text_input("Phone Number *", value=booking['customer_phone'], key=f"edit_phone_{booking['id']}")
-                                edit_email = st.text_input("Email Address", value=booking['customer_email'] or "", key=f"edit_email_{booking['id']}")
-                                edit_persons = st.number_input("Number of Persons *", 
-                                                              min_value=1, 
-                                                              value=booking['number_of_persons'],
-                                                              key=f"edit_persons_{booking['id']}")
-                            
-                            with col2:
-                                from datetime import date
-                                if isinstance(booking['booking_date'], str):
-                                    edit_date_val = datetime.strptime(booking['booking_date'], '%Y-%m-%d').date()
-                                else:
-                                    edit_date_val = booking['booking_date']
-                                
-                                edit_date = st.date_input("Booking Date *", 
-                                                         value=edit_date_val,
-                                                         key=f"edit_date_{booking['id']}")
-                                edit_del_type = st.radio("Delivery Type", ["pickup", "delivery"], 
-                                                        index=0 if booking['delivery_type'] == 'pickup' else 1,
-                                                        key=f"edit_del_{booking['id']}")
-                                
-                                if edit_del_type == "delivery":
-                                    edit_address = st.text_area("Delivery Address *", 
-                                                               value=booking['delivery_address'] or "",
-                                                               key=f"edit_addr_{booking['id']}")
-                                    total_amt = (edit_persons * pkg_info['price_per_person']) + pkg_info['delivery_charge']
-                                else:
-                                    edit_address = ""
-                                    total_amt = edit_persons * pkg_info['price_per_person']
-                            
-                            edit_special = st.text_area("Special Requests", 
-                                                       value=booking['special_requests'] or "",
-                                                       key=f"edit_special_{booking['id']}")
-                            
-                            st.markdown(f"### 💰 Updated Total: ₹{total_amt:.2f}")
-                            
-                            col_edit1, col_edit2, col_edit3 = st.columns(3)
-                            with col_edit1:
-                                if st.form_submit_button("💾 Save Changes", type="primary", use_container_width=True):
-                                    try:
-                                        update_data = {
-                                            "customer_name": edit_name,
-                                            "customer_phone": edit_phone,
-                                            "customer_email": edit_email,
-                                            "number_of_persons": edit_persons,
-                                            "booking_date": edit_date.isoformat(),
-                                            "delivery_type": edit_del_type,
-                                            "delivery_address": edit_address if edit_del_type == "delivery" else None,
-                                            "total_amount": total_amt,
-                                            "special_requests": edit_special,
-                                            "updated_at": datetime.now(timezone.utc).isoformat()
-                                        }
-                                        
-                                        supabase.table("festival_bookings").update(update_data).eq("id", booking['id']).execute()
-                                        
-                                        st.success("✅ Booking updated successfully!")
-                                        st.session_state['edit_booking_id'] = None
-                                        st.rerun()
-                                        
-                                    except Exception as e:
-                                        st.error(f"Error updating: {str(e)}")
-                            
-                            with col_edit2:
-                                if st.form_submit_button("❌ Cancel Edit", use_container_width=True):
-                                    st.session_state['edit_booking_id'] = None
-                                    st.rerun()
-                            
-                            with col_edit3:
-                                st.write("")  # Spacer
-                        
-                        st.markdown("---")
-                    
-                    else:
-                        # Normal view mode
-                        with st.expander(f"🎫 {pkg_info['package_name']} - {booking['customer_name']} ({booking['booking_date']})", expanded=False):
-                            col1, col2 = st.columns(2)
-                            
-                            with col1:
-                                st.markdown(f"**Customer:** {booking['customer_name']}")
-                                st.markdown(f"**Phone:** {booking['customer_phone']}")
-                                st.markdown(f"**Email:** {booking['customer_email'] or 'N/A'}")
-                                st.markdown(f"**Persons:** {booking['number_of_persons']}")
-                            
-                            with col2:
-                                st.markdown(f"**Booking Date:** {booking['booking_date']}")
-                                st.markdown(f"**Delivery Type:** {booking['delivery_type'].upper()}")
-                                if booking['delivery_type'] == 'delivery':
-                                    st.markdown(f"**Address:** {booking['delivery_address']}")
-                                st.markdown(f"**Total Amount:** ₹{booking['total_amount']:.2f}")
-                            
-                            st.markdown(f"**Payment Status:** {booking['payment_status'].upper()}")
-                            st.markdown(f"**Advance Paid:** ₹{booking['advance_paid']:.2f}")
-                            st.markdown(f"**Balance:** ₹{booking['total_amount'] - booking['advance_paid']:.2f}")
-                            
-                            if booking['special_requests']:
-                                st.markdown(f"**Special Requests:** {booking['special_requests']}")
-                            
-                            st.markdown("---")
-                            
-                            # Action buttons
-                            col_act1, col_act2, col_act3, col_act4 = st.columns(4)
-                            
-                            with col_act1:
-                                if st.button("✏️ Edit", key=f"edit_btn_{booking['id']}", use_container_width=True):
-                                    st.session_state['edit_booking_id'] = booking['id']
-                                    st.rerun()
-                            
-                            with col_act2:
-                                if st.button("📩 Reconfirm", key=f"reconf_{booking['id']}", use_container_width=True):
-                                    reconf_msg = f"""
-🎊 *Booking Reconfirmation - {pkg_info['package_name']}*
-
-Dear {booking['customer_name']},
-
-This is a reconfirmation of your booking with {user_settings.get('business_name', 'us')}.
-
-*Booking Details:*
- Package: {pkg_info['package_name']}
-👥 Persons: {booking['number_of_persons']}
-📅 Date: {booking['booking_date']}
-💰 Total: ₹{booking['total_amount']:.2f}
-🚚 Type: {booking['delivery_type'].upper()}
-
-{f'📍 Address: {booking["delivery_address"]}' if booking['delivery_type'] == 'delivery' else '🏪 Pickup from our location'}
-
-*Payment:*
-Advance: ₹{booking['advance_paid']:.2f}
-Balance: ₹{booking['total_amount'] - booking['advance_paid']:.2f}
-
-For queries: {user_settings.get('contact_info', '')}
-
-Thank you! 
-"""
-                                    st.code(reconf_msg, language="text")
-                                    st.info("📋 Copy and send via WhatsApp")
-                            
-                            with col_act3:
-                                new_status = st.selectbox("Payment", 
-                                                        ["pending", "advance", "paid"],
-                                                        index=["pending", "advance", "paid"].index(booking['payment_status']),
-                                                        key=f"status_{booking['id']}",
-                                                        label_visibility="collapsed")
-                                if st.button(" Update", key=f"upd_{booking['id']}", use_container_width=True):
-                                    supabase.table("festival_bookings").update({"payment_status": new_status}).eq("id", booking['id']).execute()
-                                    st.success("Payment status updated!")
-                                    st.rerun()
-                            
-                            with col_act4:
-                                if st.button("️ Delete", key=f"del_{booking['id']}", use_container_width=True):
-                                    # Store the booking ID to delete in session state
-                                    st.session_state['delete_booking_id'] = booking['id']
-                                    st.session_state['delete_booking_name'] = pkg_info['package_name']
-                                    st.session_state['delete_customer_name'] = booking['customer_name']
-                                    st.session_state['delete_amount'] = booking['total_amount']
-                                    st.rerun()
-                        
-                        # Show delete confirmation outside the expander
-                        if st.session_state.get('delete_booking_id') == booking['id']:
-                            st.error(f"⚠️ **WARNING: About to delete booking for {st.session_state['delete_customer_name']}**")
-                            st.warning(f"This action **cannot be undone**! The booking will be permanently removed.")
-                            
-                            col_del1, col_del2 = st.columns(2)
-                            with col_del1:
-                                if st.button("✅ Yes, Delete Permanently", key=f"del_confirm_{booking['id']}", type="primary", use_container_width=True):
-                                    try:
-                                        # Delete the booking
-                                        delete_res = supabase.table("festival_bookings").delete().eq("id", booking['id']).execute()
-                                        
-                                        # Clear the delete state
-                                        st.session_state['delete_booking_id'] = None
-                                        
-                                        st.success("🗑️ Booking deleted successfully!")
-                                        send_telegram_alert(f"🗑️ <b>Booking Deleted</b>\n📦 Package: {st.session_state['delete_booking_name']}\n👤 Customer: {st.session_state['delete_customer_name']}\n💰 Amount: ₹{st.session_state['delete_amount']:.2f}\n🏢 Deleted by: {user_settings.get('business_name', 'Unknown')}")
-                                        
-                                        # Force complete refresh
-                                        st.cache_data.clear()
-                                        st.rerun()
-                                        
-                                    except Exception as e:
-                                        st.error(f"❌ Error deleting booking: {str(e)}")
-                                        send_telegram_alert(f"🚨 <b>Delete Error</b>\n❌ Error: {str(e)}\n📦 Booking ID: {booking['id']}")
-                            
-                            with col_del2:
-                                if st.button("❌ Cancel", key=f"del_cancel_{booking['id']}", use_container_width=True):
-                                    st.session_state['delete_booking_id'] = None
-                                    st.rerun()
-            else:
-                st.info("No bookings yet. Share your booking link with customers!")
-                
-        except Exception as e:
-            st.error(f"Error loading bookings: {str(e)}")
-    
-    # === TAB 3: CUSTOMER BOOKING FORM ===
-    with book_tab3:
-        st.subheader(" Customer Booking Form")
-        st.markdown("*Share this form with your customers for pre-bookings*")
-        
-        try:
-            active_packages = supabase.table("festival_packages").select("*").eq("user_id", st.session_state['user'].id).eq("is_active", True).execute()
-            
-            if active_packages.data:
-                pkg_options = {f"{p['package_name']} - ₹{p['price_per_person']}/person": p for p in active_packages.data}
-                selected_pkg_name = st.selectbox("Select Package", list(pkg_options.keys()))
-                selected_pkg = pkg_options[selected_pkg_name]
-                
-                st.info(f"**Package:** {selected_pkg['package_name']} | **Price:** ₹{selected_pkg['price_per_person']}/person")
-                
-                with st.form("customer_booking_form"):
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        cust_name = st.text_input("Customer Name *")
-                        cust_phone = st.text_input("Phone Number *")
-                        cust_email = st.text_input("Email Address")
-                    
-                    with col2:
-                        num_persons = st.number_input("Number of Persons *", 
-                                                     min_value=selected_pkg['min_persons'], 
-                                                     max_value=selected_pkg['max_persons'],
-                                                     value=selected_pkg['min_persons'])
-                        booking_date = st.date_input("Preferred Date *", 
-                                                    min_value=datetime.strptime(selected_pkg['available_from'], '%Y-%m-%d').date() if isinstance(selected_pkg['available_from'], str) else selected_pkg['available_from'],
-                                                    max_value=datetime.strptime(selected_pkg['available_until'], '%Y-%m-%d').date() if isinstance(selected_pkg['available_until'], str) else selected_pkg['available_until'])
-                    
-                    del_type = st.radio("Delivery Type", ["pickup", "delivery"] if selected_pkg['delivery_available'] else ["pickup"])
-                    
-                    if del_type == "delivery":
-                        del_address = st.text_area("Delivery Address *", placeholder="Full address with landmarks")
-                    else:
-                        del_address = ""
-                    
-                    special_req = st.text_area("Special Requests / Dietary Preferences", 
-                                              placeholder="Any allergies, preferences, etc.")
-                    
-                    total = num_persons * selected_pkg['price_per_person']
-                    if del_type == "delivery":
-                        total += selected_pkg['delivery_charge']
-                    
-                    st.markdown(f"### 💰 Total Amount: ₹{total:.2f}")
-                    
-                    advance = st.number_input("Advance Payment (₹)", min_value=0.0, max_value=float(total), value=min(500.0, total))
-                    
-                    if st.form_submit_button(" Confirm Booking", type="primary", use_container_width=True):
-                        if not cust_name or not cust_phone:
-                            st.error("Please fill in all required fields!")
-                        else:
-                            try:
-                                booking_data = {
-                                    "package_id": selected_pkg['id'],
-                                    "user_id": st.session_state['user'].id,
-                                    "customer_name": cust_name,
-                                    "customer_phone": cust_phone,
-                                    "customer_email": cust_email,
-                                    "number_of_persons": num_persons,
-                                    "booking_date": booking_date.isoformat(),
-                                    "delivery_type": del_type,
-                                    "delivery_address": del_address if del_type == "delivery" else None,
-                                    "total_amount": total,
-                                    "advance_paid": advance,
-                                    "payment_status": "paid" if advance >= total else ("advance" if advance > 0 else "pending"),
-                                    "special_requests": special_req,
-                                    "booking_status": "confirmed"
-                                }
-                                
-                                res = supabase.table("festival_bookings").insert(booking_data).execute()
-                                
-                                if res.data:
-                                    supabase.table("festival_packages").update({
-                                        "bookings_count": selected_pkg['bookings_count'] + 1
-                                    }).eq("id", selected_pkg['id']).execute()
-                                    
-                                    st.success("✅ Booking confirmed successfully!")
-                                    
-                                    confirm_msg = f"""
-🎊 *Booking Confirmed - {selected_pkg['package_name']}*
-
-Dear {cust_name},
-
-Thank you for choosing {user_settings.get('business_name', 'us')}!
-
-*Booking Details:*
-🎫 Booking ID: {res.data[0]['id'][:8].upper()}
-📦 Package: {selected_pkg['package_name']}
-👥 Persons: {num_persons}
-📅 Date: {booking_date}
-💰 Total: ₹{total:.2f}
-💵 Advance: ₹{advance:.2f}
-💳 Balance: ₹{total - advance:.2f}
-🚚 Type: {del_type.upper()}
-
-{f' Address: {del_address}' if del_type == 'delivery' else '🏪 Pickup from our location'}
-
-*Payment Status:* {'PAID' if advance >= total else f'Advance Received - Balance ₹{total - advance:.2f} due on delivery/pickup'}
-
-For queries: {user_settings.get('contact_info', '')}
-
-Looking forward to serving you! 🎉
-"""
-                                    st.code(confirm_msg, language="text")
-                                    st.info("📱 Copy and send this confirmation to customer via WhatsApp")
-                                    
-                                    send_telegram_alert(f"🎊 <b>New Booking Received!</b>\n📦 Package: {selected_pkg['package_name']}\n👤 Customer: {cust_name}\n📞 Phone: {cust_phone}\n👥 Persons: {num_persons}\n💰 Total: ₹{total:.2f}\n📅 Date: {booking_date}")
-                                    
-                                else:
-                                    st.error("Failed to create booking")
-                                    
-                            except Exception as e:
-                                st.error(f"Error: {str(e)}")
-                                send_telegram_alert(f" <b>Booking Error</b>\n❌ Error: {str(e)}")
-            else:
-                st.warning("⚠️ No active packages available. Create a package first in the 'Create Package' tab.")
-                
-        except Exception as e:
-            st.error(f"Error loading packages: {str(e)}")
+                Write a friendly, helpful, and sales-oriented reply. Answer their question clearly, highlight your quality, and include a clear Call to Action to order. 
+                End with the contact info: {contact_info}. Keep it under 150 words.
+                """
+                response = call_openai(prompt)
+                st.success("Reply Drafted!")
+                st.text_area("Copy this reply:", value=response, height=200)
