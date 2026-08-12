@@ -69,20 +69,70 @@ def create_poster(template_file, headline, subtext, business_name, font_path):
         return None
 
 # ==========================================
-# CUSTOM CSS
+# ENHANCED CUSTOM CSS
 # ==========================================
 st.markdown("""
 <style>
+    /* Global Styles */
     .stApp { background-color: #F8FAFC; }
     .main-header { font-size: 2.2rem; color: #0F172A; font-weight: 800; text-align: center; margin-bottom: 0.5rem; }
     .sub-header { font-size: 1.1rem; color: #64748B; text-align: center; margin-bottom: 2rem; }
+    
+    /* Button Styling */
     .stButton > button {
         background: linear-gradient(135deg, #16A34A 0%, #15803D 100%);
         color: white; border: none; border-radius: 8px; font-weight: 700; padding: 12px 24px; width: 100%;
     }
+    
+    /* Tab Styling */
     .stTabs [data-baseweb="tab-list"] { gap: 8px; }
     .stTabs [data-baseweb="tab"] { background-color: white; border-radius: 8px 8px 0 0; padding: 12px 24px; font-weight: 600; }
     .stTabs [aria-selected="true"] { background-color: #16A34A; color: white; }
+    
+    /* INPUT FIELDS - ENHANCED VISIBILITY */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea,
+    .stSelectbox > div > div > div {
+        background-color: #FFFFFF !important;
+        border: 2px solid #3B82F6 !important;
+        border-radius: 8px !important;
+        padding: 12px 16px !important;
+        font-size: 15px !important;
+        color: #0F172A !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    /* Input Focus State - Green Border */
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus,
+    .stSelectbox > div > div > div:focus {
+        border-color: #16A34A !important;
+        border-width: 3px !important;
+        box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.15) !important;
+        background-color: #F0FDF4 !important;
+    }
+    
+    /* Input Hover State */
+    .stTextInput > div > div > input:hover,
+    .stTextArea > div > div > textarea:hover {
+        border-color: #60A5FA !important;
+        background-color: #EFF6FF !important;
+    }
+    
+    /* Labels - Bold and Clear */
+    .stTextInput label, .stTextArea label, .stSelectbox label {
+        color: #1E293B !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
+        margin-bottom: 8px !important;
+    }
+    
+    /* Section Headers */
+    .stSubheader {
+        color: #0F172A !important;
+        font-weight: 700 !important;
+        margin-bottom: 20px !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -102,11 +152,16 @@ with tab_poster:
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        business_name = st.text_input("Business Name", value="My Bakery", key="poster_biz_name")
-        template_choice = st.selectbox("Choose Template", ["festive.png", "sale.png", "clean.png"], key="poster_template")
-        headline = st.text_input("Main Headline (Big Text)", value="50% OFF", max_chars=15, key="poster_headline")
-        subtext = st.text_input("Subtext (Details)", value="This Weekend Only!", max_chars=40, key="poster_subtext")
-        platform = st.selectbox("Target Platform", ["Instagram", "Facebook", "WhatsApp Status"], key="poster_platform")
+        business_name = st.text_input("Business Name", value="My Bakery", max_chars=100, key="poster_biz_name", 
+                                     help="Enter your business or shop name")
+        template_choice = st.selectbox("Choose Template", ["festive.png", "sale.png", "clean.png"], key="poster_template",
+                                      help="Select a background template style")
+        headline = st.text_input("Main Headline (Big Text)", value="50% OFF", max_chars=80, key="poster_headline",
+                                help="Short, punchy text that grabs attention")
+        subtext = st.text_input("Subtext (Details)", value="This Weekend Only!", max_chars=250, key="poster_subtext",
+                               help="Additional details about your offer")
+        platform = st.selectbox("Target Platform", ["Instagram", "Facebook", "WhatsApp Status"], key="poster_platform",
+                               help="Where will you post this?")
         gen_poster_btn = st.button("✨ Generate Poster & Caption", type="primary", key="poster_generate_btn")
 
     with col2:
@@ -126,7 +181,8 @@ with tab_poster:
 
                 with st.spinner("Writing AI Caption..."):
                     caption = call_openai(f"Write a short, engaging Instagram caption for {business_name} about '{headline} - {subtext}'. Include 5 relevant hashtags.")
-                    st.text_area("AI Caption:", value=caption, height=150, key="poster_caption")
+                    st.text_area("AI Caption:", value=caption, height=150, key="poster_caption",
+                                help="Copy this caption for your social media post")
 
 # ==========================================
 # TAB 2: REVIEW RESPONDER
@@ -137,13 +193,14 @@ with tab_review:
     
     col1, col2 = st.columns(2)
     with col1:
-        reviewer_name = st.text_input("Reviewer Name", value="Customer", key="review_reviewer")
+        reviewer_name = st.text_input("Reviewer Name", value="Customer", max_chars=100, key="review_reviewer")
         rating = st.selectbox("Star Rating", [1, 2, 3, 4, 5], index=4, key="review_rating")
     with col2:
-        biz_name_review = st.text_input("Your Business Name", value="My Bakery", key="review_biz_name")
-        owner_name = st.text_input("Your Name (for sign-off)", value="Manager", key="review_owner")
+        biz_name_review = st.text_input("Your Business Name", value="My Bakery", max_chars=100, key="review_biz_name")
+        owner_name = st.text_input("Your Name (for sign-off)", value="Manager", max_chars=50, key="review_owner")
 
-    review_text = st.text_area("Paste the Customer Review Here", height=150, placeholder="e.g., The food was good but the service was very slow...", key="review_text")
+    review_text = st.text_area("Paste the Customer Review Here", height=150, max_chars=1000, 
+                              placeholder="e.g., The food was good but the service was very slow...", key="review_text")
     
     if st.button("✨ Generate Professional Reply", type="primary", key="review_generate_btn"):
         if review_text:
@@ -159,7 +216,8 @@ with tab_review:
                 """
                 response = call_openai(prompt)
                 st.success("Reply Generated!")
-                st.text_area("Copy this reply:", value=response, height=200, key="review_response")
+                st.text_area("Copy this reply:", value=response, height=200, key="review_response",
+                            help="Copy this response to paste on Google/Facebook")
 
 # ==========================================
 # TAB 3: INQUIRY RESPONDER
@@ -170,13 +228,14 @@ with tab_inquiry:
     
     col1, col2 = st.columns(2)
     with col1:
-        customer_name = st.text_input("Customer Name", value="Friend", key="inq_customer")
-        biz_name_inq = st.text_input("Your Business Name", value="My Bakery", key="inq_biz_name")
+        customer_name = st.text_input("Customer Name", value="Friend", max_chars=100, key="inq_customer")
+        biz_name_inq = st.text_input("Your Business Name", value="My Bakery", max_chars=100, key="inq_biz_name")
     with col2:
-        product_service = st.text_input("What do you sell?", value="Cakes and Pastries", key="inq_product")
-        contact_info = st.text_input("Your Phone/Address", value="Call us at 9876543210", key="inq_contact")
+        product_service = st.text_input("What do you sell?", value="Cakes and Pastries", max_chars=150, key="inq_product")
+        contact_info = st.text_input("Your Phone/Address", value="Call us at 9876543210", max_chars=200, key="inq_contact")
 
-    inquiry_text = st.text_area("Paste the Customer's Question", height=150, placeholder="e.g., Hi, do you have eggless chocolate cakes available for tomorrow?", key="inq_text")
+    inquiry_text = st.text_area("Paste the Customer's Question", height=150, max_chars=1000, 
+                               placeholder="e.g., Hi, do you have eggless chocolate cakes available for tomorrow?", key="inq_text")
     
     if st.button("✨ Generate Sales Reply", type="primary", key="inq_generate_btn"):
         if inquiry_text:
@@ -190,4 +249,5 @@ with tab_inquiry:
                 """
                 response = call_openai(prompt)
                 st.success("Reply Drafted!")
-                st.text_area("Copy this reply:", value=response, height=200, key="inq_response")
+                st.text_area("Copy this reply:", value=response, height=200, key="inq_response",
+                            help="Copy this reply to send via WhatsApp or Email")
