@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Initialize OpenAI (Make sure OPENAI_API_KEY is in your .env file)
+# Initialize OpenAI
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 st.set_page_config(page_title="A.R.I.A. Digital Manager", layout="centered", page_icon="🚀")
@@ -20,7 +20,7 @@ def call_openai(prompt):
     """Generic function to call OpenAI quickly and cheaply."""
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini", # Extremely cheap and fast
+            model="gpt-4o-mini",
             messages=[{"role": "system", "content": "You are an expert marketing and customer service assistant for Indian small businesses. Keep responses professional, polite, and concise."},
                       {"role": "user", "content": prompt}],
             temperature=0.7
@@ -37,13 +37,12 @@ def create_poster(template_file, headline, subtext, business_name, font_path):
         draw = ImageDraw.Draw(image)
         width, height = image.size
         
-        # Load fonts
         try:
             font_headline = ImageFont.truetype(font_path, 85)
             font_subtext = ImageFont.truetype(font_path, 45)
             font_brand = ImageFont.truetype(font_path, 35)
         except:
-            st.error("Font file not found! Check assets folder.")
+            st.error("Font file not found! Check assets/fonts folder.")
             return None
 
         def draw_centered_text(y_pos, text, font, color, shadow_color="black"):
@@ -93,7 +92,7 @@ st.markdown('<div class="sub-header">Your AI Marketing & Reputation Assistant</d
 # ==========================================
 # TABS NAVIGATION
 # ==========================================
-tab_poster, tab_review, tab_inquiry = st.tabs(["🎨 Poster Maker", "⭐ Review Responder", "️ Inquiry Responder"])
+tab_poster, tab_review, tab_inquiry = st.tabs([" Poster Maker", "⭐ Review Responder", "️ Inquiry Responder"])
 
 # ==========================================
 # TAB 1: POSTER MAKER
@@ -103,12 +102,12 @@ with tab_poster:
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        business_name = st.text_input("Business Name", value="My Bakery", key="poster_biz")
-        template_choice = st.selectbox("Choose Template", ["festive.png", "sale.png", "clean.png"], key="poster_temp")
-        headline = st.text_input("Main Headline (Big Text)", value="50% OFF", max_chars=15, key="poster_head")
-        subtext = st.text_input("Subtext (Details)", value="This Weekend Only!", max_chars=40, key="poster_sub")
-        platform = st.selectbox("Target Platform", ["Instagram", "Facebook", "WhatsApp Status"], key="poster_plat")
-        gen_poster_btn = st.button("✨ Generate Poster & Caption", type="primary")
+        business_name = st.text_input("Business Name", value="My Bakery", key="poster_biz_name")
+        template_choice = st.selectbox("Choose Template", ["festive.png", "sale.png", "clean.png"], key="poster_template")
+        headline = st.text_input("Main Headline (Big Text)", value="50% OFF", max_chars=15, key="poster_headline")
+        subtext = st.text_input("Subtext (Details)", value="This Weekend Only!", max_chars=40, key="poster_subtext")
+        platform = st.selectbox("Target Platform", ["Instagram", "Facebook", "WhatsApp Status"], key="poster_platform")
+        gen_poster_btn = st.button("✨ Generate Poster & Caption", type="primary", key="poster_generate_btn")
 
     with col2:
         if gen_poster_btn:
@@ -116,18 +115,18 @@ with tab_poster:
                 st.error("Please fill in Business Name and Headline.")
             else:
                 with st.spinner("Designing poster..."):
-                    font_path = "assets/fonts/Montserrat-Bold.ttf" 
+                    font_path = "assets/fonts/Montserrat-Bold.ttf"
                     poster_image = create_poster(template_choice, headline, subtext, business_name, font_path)
                     
                     if poster_image:
                         st.image(poster_image, caption="Your Generated Poster", use_column_width=True)
                         buf = io.BytesIO()
                         poster_image.save(buf, format="JPEG", quality=90)
-                        st.download_button(label="📥 Download Image", data=buf.getvalue(), file_name=f"{business_name}_poster.jpg", mime="image/jpeg", use_container_width=True)
+                        st.download_button(label="📥 Download Image", data=buf.getvalue(), file_name=f"{business_name}_poster.jpg", mime="image/jpeg", use_container_width=True, key="poster_download")
 
                 with st.spinner("Writing AI Caption..."):
                     caption = call_openai(f"Write a short, engaging Instagram caption for {business_name} about '{headline} - {subtext}'. Include 5 relevant hashtags.")
-                    st.text_area("AI Caption:", value=caption, height=150)
+                    st.text_area("AI Caption:", value=caption, height=150, key="poster_caption")
 
 # ==========================================
 # TAB 2: REVIEW RESPONDER
@@ -138,15 +137,15 @@ with tab_review:
     
     col1, col2 = st.columns(2)
     with col1:
-        reviewer_name = st.text_input("Reviewer Name", value="Customer")
-        rating = st.selectbox("Star Rating", [1, 2, 3, 4, 5], index=4)
+        reviewer_name = st.text_input("Reviewer Name", value="Customer", key="review_reviewer")
+        rating = st.selectbox("Star Rating", [1, 2, 3, 4, 5], index=4, key="review_rating")
     with col2:
-        biz_name_review = st.text_input("Your Business Name", value="My Bakery")
-        owner_name = st.text_input("Your Name (for sign-off)", value="Manager")
+        biz_name_review = st.text_input("Your Business Name", value="My Bakery", key="review_biz_name")
+        owner_name = st.text_input("Your Name (for sign-off)", value="Manager", key="review_owner")
 
-    review_text = st.text_area("Paste the Customer Review Here", height=150, placeholder="e.g., The food was good but the service was very slow...")
+    review_text = st.text_area("Paste the Customer Review Here", height=150, placeholder="e.g., The food was good but the service was very slow...", key="review_text")
     
-    if st.button("✨ Generate Professional Reply", type="primary"):
+    if st.button("✨ Generate Professional Reply", type="primary", key="review_generate_btn"):
         if review_text:
             with st.spinner("Writing response..."):
                 prompt = f"""
@@ -160,7 +159,7 @@ with tab_review:
                 """
                 response = call_openai(prompt)
                 st.success("Reply Generated!")
-                st.text_area("Copy this reply:", value=response, height=200)
+                st.text_area("Copy this reply:", value=response, height=200, key="review_response")
 
 # ==========================================
 # TAB 3: INQUIRY RESPONDER
@@ -171,15 +170,15 @@ with tab_inquiry:
     
     col1, col2 = st.columns(2)
     with col1:
-        customer_name = st.text_input("Customer Name", value="Friend")
-        biz_name_inq = st.text_input("Your Business Name", value="My Bakery")
+        customer_name = st.text_input("Customer Name", value="Friend", key="inq_customer")
+        biz_name_inq = st.text_input("Your Business Name", value="My Bakery", key="inq_biz_name")
     with col2:
-        product_service = st.text_input("What do you sell?", value="Cakes and Pastries")
-        contact_info = st.text_input("Your Phone/Address", value="Call us at 9876543210")
+        product_service = st.text_input("What do you sell?", value="Cakes and Pastries", key="inq_product")
+        contact_info = st.text_input("Your Phone/Address", value="Call us at 9876543210", key="inq_contact")
 
-    inquiry_text = st.text_area("Paste the Customer's Question", height=150, placeholder="e.g., Hi, do you have eggless chocolate cakes available for tomorrow?")
+    inquiry_text = st.text_area("Paste the Customer's Question", height=150, placeholder="e.g., Hi, do you have eggless chocolate cakes available for tomorrow?", key="inq_text")
     
-    if st.button("✨ Generate Sales Reply", type="primary"):
+    if st.button("✨ Generate Sales Reply", type="primary", key="inq_generate_btn"):
         if inquiry_text:
             with st.spinner("Drafting reply..."):
                 prompt = f"""
@@ -191,4 +190,4 @@ with tab_inquiry:
                 """
                 response = call_openai(prompt)
                 st.success("Reply Drafted!")
-                st.text_area("Copy this reply:", value=response, height=200)
+                st.text_area("Copy this reply:", value=response, height=200, key="inq_response")
