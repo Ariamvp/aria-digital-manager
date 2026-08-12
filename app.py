@@ -69,22 +69,45 @@ def download_font(font_name, font_url):
                 f.write(response.content)
             return font_path
     except Exception as e:
-        st.warning(f"️ Could not download font: {font_name}")
+        st.warning(f"⚠️ Could not download font: {font_name}")
     return None
 
 def fetch_unsplash_images(query="festival", count=6):
-    """Fetch free high-quality images from Unsplash"""
+    """Fetch free high-quality images from Unsplash Official API"""
+    access_key = os.getenv("UNSPLASH_ACCESS_KEY")
+    
+    if not access_key:
+        st.error("❌ Unsplash API key not found! Please add UNSPLASH_ACCESS_KEY to Streamlit Secrets.")
+        return []
+    
     images = []
-    # Use Unsplash Source API (free, no key required)
-    search_terms = query.replace(' ', ',')
-    for i in range(count):
-        img_url = f"https://source.unsplash.com/1080x1080/?{search_terms}&sig={i}"
-        try:
-            response = requests.get(img_url, timeout=15)
-            if response.status_code == 200:
-                images.append(response.content)
-        except:
-            pass
+    try:
+        url = "https://api.unsplash.com/search/photos"
+        params = {
+            "query": query,
+            "per_page": count,
+            "orientation": "squarish",  # Gets square-ish images perfect for posters
+            "client_id": access_key
+        }
+        
+        response = requests.get(url, params=params, timeout=15)
+        
+        if response.status_code == 200:
+            data = response.json()
+            results = data.get('results', [])
+            
+            for result in results:
+                # Get the regular size image (close to 1080x1080)
+                img_url = result['urls']['regular']
+                img_response = requests.get(img_url, timeout=15)
+                if img_response.status_code == 200:
+                    images.append(img_response.content)
+        else:
+            st.error(f"Unsplash API error: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        st.error(f"Error fetching images: {e}")
+    
     return images
 
 # ==========================================
@@ -92,8 +115,6 @@ def fetch_unsplash_images(query="festival", count=6):
 # ==========================================
 def get_style_config(style_name):
     """Returns font, colors, and layout settings based on chosen style."""
-    fonts = get_available_fonts()
-    
     if "Modern" in style_name or "Bold" in style_name:
         font_key = "Poppins (Modern/Bold)"
         return {
@@ -269,7 +290,7 @@ st.markdown("""
 st.markdown('<div class="main-header">🎨 A.R.I.A. Smart Poster Engine</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">AI-Powered Designs • Free Fonts • Unlimited Templates</div>', unsafe_allow_html=True)
 
-tab_poster, tab_review, tab_inquiry = st.tabs([" Smart Poster", "⭐ Review Responder", "💬 Inquiry Responder"])
+tab_poster, tab_review, tab_inquiry = st.tabs(["🎨 Smart Poster", "⭐ Review Responder", "💬 Inquiry Responder"])
 
 # ==========================================
 # TAB 1: SMART POSTER ENGINE
@@ -288,16 +309,16 @@ with tab_poster:
             unsplash_query = st.text_input("Search for background:", 
                                            value="indian festival lights",
                                            help="e.g., 'diwali', 'food', 'restaurant', 'sale', 'onam'")
-            if st.button(" Load Free Backgrounds", type="primary"):
+            if st.button("🔄 Load Free Backgrounds", type="primary"):
                 with st.spinner("Fetching beautiful free images from Unsplash..."):
                     images = fetch_unsplash_images(unsplash_query, count=6)
                     if images:
                         st.session_state['unsplash_images'] = images
                         st.success(f"✅ Loaded {len(images)} backgrounds!")
                     else:
-                        st.error("Could not fetch images. Try different search terms.")
+                        st.error("Could not fetch images. Check API key or try different search terms.")
         
-        if bg_source == " Pre-made Templates":
+        if bg_source == "📦 Pre-made Templates":
             template_choice = st.selectbox("Choose Template:", ["festive.png", "sale.png", "clean.png"])
     
     col1, col2 = st.columns([1, 1])
@@ -346,7 +367,7 @@ with tab_poster:
                             style_name = design_style
                             font_path = None
                         else:
-                            st.info("Click 'Load Free Backgrounds' first!")
+                            st.info("👆 Click 'Load Free Backgrounds' in the sidebar first!")
                             base_img = None
                             style_name = ""
                             font_path = None
