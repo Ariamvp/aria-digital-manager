@@ -168,9 +168,9 @@ with tab_poster:
                                      help="Enter your business or shop name")
         template_choice = st.selectbox("Choose Template", ["festive.png", "sale.png", "clean.png"], key="poster_template",
                                       help="Select a background template style")
-        headline = st.text_input("Main Headline (Big Text)", value="50% OFF", max_chars=50, key="poster_headline",
+        headline = st.text_input("Main Headline (Big Text)", value="50% OFF", max_chars=80, key="poster_headline",
                                 help="Short, punchy text that grabs attention")
-        subtext = st.text_input("Subtext (Details)", value="This Weekend Only!", max_chars=100, key="poster_subtext",
+        subtext = st.text_input("Subtext (Details)", value="This Weekend Only!", max_chars=250, key="poster_subtext",
                                help="Additional details about your offer")
         platform = st.selectbox("Target Platform", ["Instagram", "Facebook", "WhatsApp Status"], key="poster_platform",
                                help="Where will you post this?")
