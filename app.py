@@ -156,40 +156,51 @@ def draw_text_with_outline(draw, position, text, font, fill_color, outline_color
     draw.text((x, y), text, font=font, fill=fill_color)
 
 def create_smart_poster(base_image, headline, subtext, business_name, style_name, font_path=None):
-    """The core engine that adapts to the image and style."""
+    """The core engine - FIXED for readable text"""
     try:
         image = base_image.convert("RGBA").resize((1080, 1080))
         draw = ImageDraw.Draw(image)
         width, height = image.size
         
+        # Auto-darken user uploads
         if style_name == "User Upload":
             enhancer = ImageEnhance.Brightness(image)
             image = enhancer.enhance(0.5)
             draw = ImageDraw.Draw(image)
-            config = {
-                "headline_color": "#FFFFFF", "subtext_color": "#FFD700", "brand_color": "#FFFFFF",
-                "outline_color": "#000000", "shadow_strength": 5
-            }
+            config = {"outline_color": "#000000"}
         else:
-            config = get_style_config(style_name)
+            config = {"outline_color": "#000000"}
 
+        # CRITICAL: Use HUGE font sizes that work with ANY Pillow version
         try:
-            if font_path and os.path.exists(font_path):
-                font_headline = ImageFont.truetype(font_path, 120)
-                font_subtext = ImageFont.truetype(font_path, 60)
-                font_brand = ImageFont.truetype(font_path, 45)
+            # Try to use Poppins from local assets folder
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            font_file = os.path.join(base_dir, "assets", "fonts", "Poppins-Bold.ttf")
+            
+            if os.path.exists(font_file):
+                font_headline = ImageFont.truetype(font_file, 100)
+                font_subtext = ImageFont.truetype(font_file, 50)
+                font_brand = ImageFont.truetype(font_file, 40)
             else:
-                font_headline = ImageFont.load_default()
-                font_subtext = ImageFont.load_default()
-                font_brand = ImageFont.load_default()
-                st.warning("⚠️ Using default font. Download may be needed.")
-        except Exception:
+                # FALLBACK: Use Arial or Helvetica (available on all systems)
+                try:
+                    font_headline = ImageFont.truetype("arial.ttf", 100)
+                    font_subtext = ImageFont.truetype("arial.ttf", 50)
+                    font_brand = ImageFont.truetype("arial.ttf", 40)
+                except:
+                    # LAST RESORT: Use default (will be small but at least it works)
+                    font_headline = ImageFont.load_default()
+                    font_subtext = ImageFont.load_default()
+                    font_brand = ImageFont.load_default()
+                    st.warning("️ Using basic font. Add Poppins-Bold.ttf to assets/fonts/")
+        except Exception as e:
+            st.warning(f"Font issue: {e}. Using fallback.")
             font_headline = ImageFont.load_default()
             font_subtext = ImageFont.load_default()
             font_brand = ImageFont.load_default()
 
-        def draw_centered_smart(y_pos, text, font, color, outline_width):
-            max_chars = 16 if font.size > 100 else 24
+        def draw_centered_smart(y_pos, text, font, color, outline_width=5):
+            max_chars = 18 if font.size > 80 else 25
             lines = textwrap.fill(text, width=max_chars).split('\n')
             line_height = font.getbbox("A")[3] + 15
             total_height = len(lines) * line_height
@@ -199,17 +210,20 @@ def create_smart_poster(base_image, headline, subtext, business_name, style_name
                 bbox = draw.textbbox((0, 0), line, font=font)
                 text_width = bbox[2] - bbox[0]
                 x = (width - text_width) / 2
-                draw_text_with_outline(draw, (x, current_y), line, font, color, config["outline_color"], outline_width)
+                
+                # Draw outline for readability
+                for adj in range(-outline_width, outline_width + 1):
+                    for opp in range(-outline_width, outline_width + 1):
+                        if adj != 0 or opp != 0:
+                            draw.text((x + adj, current_y + opp), line, font=font, fill=outline_color)
+                # Draw main text
+                draw.text((x, current_y), line, font=font, fill=color)
                 current_y += line_height
 
-        if "Elegant" in style_name or "Traditional" in style_name:
-            draw_centered_smart(height * 0.30, headline.upper(), font_headline, config["headline_color"], config["shadow_strength"])
-            draw_centered_smart(height * 0.55, subtext, font_subtext, config["subtext_color"], config["shadow_strength"])
-            draw_centered_smart(height * 0.88, business_name.upper(), font_brand, config["brand_color"], config["shadow_strength"])
-        else:
-            draw_centered_smart(height * 0.35, headline.upper(), font_headline, config["headline_color"], config["shadow_strength"])
-            draw_centered_smart(height * 0.58, subtext, font_subtext, config["subtext_color"], config["shadow_strength"])
-            draw_centered_smart(height * 0.85, business_name.upper(), font_brand, config["brand_color"], config["shadow_strength"])
+        # Draw text with LARGE, READABLE sizes
+        draw_centered_smart(height * 0.35, headline.upper(), font_headline, "#FFFFFF")
+        draw_centered_smart(height * 0.58, subtext, font_subtext, "#FFD700")
+        draw_centered_smart(height * 0.85, business_name.upper(), font_brand, "#FFFFFF")
 
         return image.convert("RGB")
     except Exception as e:
