@@ -305,6 +305,12 @@ with tab_poster:
                             ["📦 Pre-made Templates", "🌐 Fetch from Unsplash (Free)", "📤 Upload Your Own"],
                             key="bg_source")
         
+        # Show upload field immediately if "Upload Your Own" is selected
+        uploaded_image = None
+        if bg_source == " Upload Your Own":
+            uploaded_image = st.file_uploader("📤 Upload your photo", type=["jpg", "png", "jpeg"], 
+                                             key="upload_img", help="Upload a photo of your product, shop, or dish")
+        
         if bg_source == "🌐 Fetch from Unsplash (Free)":
             unsplash_query = st.text_input("Search for background:", 
                                            value="indian festival lights",
@@ -344,11 +350,12 @@ with tab_poster:
         if gen_poster_btn:
             if not headline or not business_name:
                 st.error("Please fill in Business Name and Headline.")
+            elif bg_source == "📤 Upload Your Own" and not uploaded_image:
+                st.error("Please upload an image first!")
             else:
                 with st.spinner("🎨 Smart Engine designing your poster..."):
                     # Load base image based on source
                     if bg_source == "📤 Upload Your Own":
-                        uploaded_image = st.file_uploader("Upload photo", type=["jpg", "png", "jpeg"], key="upload_img")
                         if uploaded_image:
                             base_img = Image.open(uploaded_image)
                             style_name = "User Upload"
@@ -367,7 +374,7 @@ with tab_poster:
                             style_name = design_style
                             font_path = None
                         else:
-                            st.info("👆 Click 'Load Free Backgrounds' in the sidebar first!")
+                            st.info(" Click 'Load Free Backgrounds' in the sidebar first!")
                             base_img = None
                             style_name = ""
                             font_path = None
@@ -398,7 +405,6 @@ with tab_poster:
                             with st.spinner("✍️ Writing AI Caption..."):
                                 caption = call_openai(f"Write engaging Instagram caption for {business_name} about '{headline} - {subtext}'. Include 5 hashtags.")
                                 st.text_area("AI Caption:", value=caption, height=150, key="poster_caption")
-
 # ==========================================
 # TAB 2: REVIEW RESPONDER
 # ==========================================
