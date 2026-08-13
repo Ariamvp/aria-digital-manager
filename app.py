@@ -303,8 +303,8 @@ with tab_poster:
         ]
         
         design_style = st.selectbox("Design Style (Auto-adapts fonts & colors):", style_options, key="poster_style")
-        headline = st.text_input("Main Headline", value="50% OFF", max_chars=50, key="poster_headline")
-        subtext = st.text_input("Subtext (Details)", value="This Weekend Only!", max_chars=100, key="poster_subtext")
+        headline = st.text_input("Main Headline", value="50% OFF", max_chars=80, key="poster_headline")
+        subtext = st.text_input("Subtext (Details)", value="This Weekend Only!", max_chars=300, key="poster_subtext")
         
         gen_poster_btn = st.button("✨ Generate Smart Poster", type="primary", key="poster_generate_btn")
 
