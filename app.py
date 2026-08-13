@@ -23,31 +23,24 @@ def get_available_fonts():
     return {
         "Poppins (Modern/Bold)": {
             "url": f"{GOOGLE_FONTS_RAW}/ofl/poppins/Poppins%5Bwght%5D.ttf",
-            "style": "Bold & Modern"
         },
         "Playfair Display (Elegant)": {
             "url": f"{GOOGLE_FONTS_RAW}/ofl/playfairdisplay/PlayfairDisplay%5Bwght%5D.ttf",
-            "style": "Elegant & Traditional"
         },
         "Fredoka One (Playful)": {
             "url": f"{GOOGLE_FONTS_RAW}/ofl/fredoka/Fredoka%5Bwght%5D.ttf",
-            "style": "Fun & Playful"
         },
         "Roboto (Clean)": {
             "url": f"{GOOGLE_FONTS_RAW}/apache/roboto/Roboto%5Bwght%5D.ttf",
-            "style": "Minimal & Clean"
         },
         "Oswald (Strong)": {
             "url": f"{GOOGLE_FONTS_RAW}/ofl/oswald/Oswald%5Bwght%5D.ttf",
-            "style": "Bold & Strong"
         },
         "Lobster (Decorative)": {
             "url": f"{GOOGLE_FONTS_RAW}/ofl/lobster/Lobster-Regular.ttf",
-            "style": "Decorative & Fancy"
         },
         "Bebas Neue (Impact)": {
             "url": f"{GOOGLE_FONTS_RAW}/ofl/bebasneue/BebasNeue-Regular.ttf",
-            "style": "Impact & Headlines"
         }
     }
 
@@ -58,7 +51,9 @@ def download_font(font_name, font_url):
         font_dir = os.path.join(base_dir, "assets", "fonts")
         os.makedirs(font_dir, exist_ok=True)
         
-        font_path = os.path.join(font_dir, f"{font_name.replace(' ', '_')}.ttf")
+        # Clean filename for saving
+        safe_name = font_name.replace(" ", "_").replace("(", "").replace(")", "")
+        font_path = os.path.join(font_dir, f"{safe_name}.ttf")
         
         if os.path.exists(font_path):
             return font_path
@@ -86,7 +81,7 @@ def fetch_unsplash_images(query="festival", count=6):
         params = {
             "query": query,
             "per_page": count,
-            "orientation": "squarish",  # Gets square-ish images perfect for posters
+            "orientation": "squarish",
             "client_id": access_key
         }
         
@@ -97,13 +92,12 @@ def fetch_unsplash_images(query="festival", count=6):
             results = data.get('results', [])
             
             for result in results:
-                # Get the regular size image (close to 1080x1080)
                 img_url = result['urls']['regular']
                 img_response = requests.get(img_url, timeout=15)
                 if img_response.status_code == 200:
                     images.append(img_response.content)
         else:
-            st.error(f"Unsplash API error: {response.status_code} - {response.text}")
+            st.error(f"Unsplash API error: {response.status_code}")
             
     except Exception as e:
         st.error(f"Error fetching images: {e}")
@@ -116,75 +110,49 @@ def fetch_unsplash_images(query="festival", count=6):
 def get_style_config(style_name):
     """Returns font, colors, and layout settings based on chosen style."""
     if "Modern" in style_name or "Bold" in style_name:
-        font_key = "Poppins (Modern/Bold)"
         return {
-            "font_key": font_key,
-            "headline_color": "#FFFFFF",
-            "subtext_color": "#FFD700",
-            "brand_color": "#FFFFFF",
-            "outline_color": "#000000",
-            "shadow_strength": 5
+            "font_key": "Poppins (Modern/Bold)",
+            "headline_color": "#FFFFFF", "subtext_color": "#FFD700", "brand_color": "#FFFFFF",
+            "outline_color": "#000000", "shadow_strength": 5
         }
     elif "Elegant" in style_name or "Traditional" in style_name:
-        font_key = "Playfair Display (Elegant)"
         return {
-            "font_key": font_key,
-            "headline_color": "#F8FAFC",
-            "subtext_color": "#FCD34D",
-            "brand_color": "#F8FAFC",
-            "outline_color": "#1E293B",
-            "shadow_strength": 3
+            "font_key": "Playfair Display (Elegant)",
+            "headline_color": "#F8FAFC", "subtext_color": "#FCD34D", "brand_color": "#F8FAFC",
+            "outline_color": "#1E293B", "shadow_strength": 3
         }
     elif "Playful" in style_name or "Fun" in style_name:
-        font_key = "Fredoka One (Playful)"
         return {
-            "font_key": font_key,
-            "headline_color": "#FFFFFF",
-            "subtext_color": "#FCA5A5",
-            "brand_color": "#FFFFFF",
-            "outline_color": "#7F1D1D",
-            "shadow_strength": 4
+            "font_key": "Fredoka One (Playful)",
+            "headline_color": "#FFFFFF", "subtext_color": "#FCA5A5", "brand_color": "#FFFFFF",
+            "outline_color": "#7F1D1D", "shadow_strength": 4
         }
     elif "Minimal" in style_name or "Clean" in style_name:
-        font_key = "Roboto (Clean)"
         return {
-            "font_key": font_key,
-            "headline_color": "#FFFFFF",
-            "subtext_color": "#E5E7EB",
-            "brand_color": "#FFFFFF",
-            "outline_color": "#111827",
-            "shadow_strength": 4
+            "font_key": "Roboto (Clean)",
+            "headline_color": "#FFFFFF", "subtext_color": "#E5E7EB", "brand_color": "#FFFFFF",
+            "outline_color": "#111827", "shadow_strength": 4
         }
     elif "Impact" in style_name or "Strong" in style_name:
-        font_key = "Bebas Neue (Impact)"
         return {
-            "font_key": font_key,
-            "headline_color": "#FFFFFF",
-            "subtext_color": "#FBBF24",
-            "brand_color": "#FFFFFF",
-            "outline_color": "#000000",
-            "shadow_strength": 6
+            "font_key": "Bebas Neue (Impact)",
+            "headline_color": "#FFFFFF", "subtext_color": "#FBBF24", "brand_color": "#FFFFFF",
+            "outline_color": "#000000", "shadow_strength": 6
         }
     else:
-        font_key = "Poppins (Modern/Bold)"
         return {
-            "font_key": font_key,
-            "headline_color": "#FFFFFF",
-            "subtext_color": "#FFD700",
-            "brand_color": "#FFFFFF",
-            "outline_color": "#000000",
-            "shadow_strength": 5
+            "font_key": "Poppins (Modern/Bold)",
+            "headline_color": "#FFFFFF", "subtext_color": "#FFD700", "brand_color": "#FFFFFF",
+            "outline_color": "#000000", "shadow_strength": 5
         }
 
 def draw_text_with_outline(draw, position, text, font, fill_color, outline_color, outline_width=4):
     """Draws text with professional outline for maximum readability."""
     x, y = position
-    # Draw outline (shadow effect)
     for adj in range(-outline_width, outline_width + 1):
         for opp in range(-outline_width, outline_width + 1):
-            if adj != 0 or opp != 0:  # Skip center
+            if adj != 0 or opp != 0:
                 draw.text((x + adj, y + opp), text, font=font, fill=outline_color)
-    # Draw main text
     draw.text((x, y), text, font=font, fill=fill_color)
 
 def create_smart_poster(base_image, headline, subtext, business_name, style_name, font_path=None):
@@ -194,22 +162,17 @@ def create_smart_poster(base_image, headline, subtext, business_name, style_name
         draw = ImageDraw.Draw(image)
         width, height = image.size
         
-        # Auto-darken user uploads for better text visibility
         if style_name == "User Upload":
             enhancer = ImageEnhance.Brightness(image)
             image = enhancer.enhance(0.5)
             draw = ImageDraw.Draw(image)
             config = {
-                "headline_color": "#FFFFFF",
-                "subtext_color": "#FFD700",
-                "brand_color": "#FFFFFF",
-                "outline_color": "#000000",
-                "shadow_strength": 5
+                "headline_color": "#FFFFFF", "subtext_color": "#FFD700", "brand_color": "#FFFFFF",
+                "outline_color": "#000000", "shadow_strength": 5
             }
         else:
             config = get_style_config(style_name)
 
-        # Load font (try custom, fallback to default)
         try:
             if font_path and os.path.exists(font_path):
                 font_headline = ImageFont.truetype(font_path, 120)
@@ -220,7 +183,7 @@ def create_smart_poster(base_image, headline, subtext, business_name, style_name
                 font_subtext = ImageFont.load_default()
                 font_brand = ImageFont.load_default()
                 st.warning("⚠️ Using default font. Download may be needed.")
-        except Exception as e:
+        except Exception:
             font_headline = ImageFont.load_default()
             font_subtext = ImageFont.load_default()
             font_brand = ImageFont.load_default()
@@ -239,7 +202,6 @@ def create_smart_poster(base_image, headline, subtext, business_name, style_name
                 draw_text_with_outline(draw, (x, current_y), line, font, color, config["outline_color"], outline_width)
                 current_y += line_height
 
-        # Apply layout
         if "Elegant" in style_name or "Traditional" in style_name:
             draw_centered_smart(height * 0.30, headline.upper(), font_headline, config["headline_color"], config["shadow_strength"])
             draw_centered_smart(height * 0.55, subtext, font_subtext, config["subtext_color"], config["shadow_strength"])
@@ -305,9 +267,9 @@ with tab_poster:
                             ["📦 Pre-made Templates", "🌐 Fetch from Unsplash (Free)", "📤 Upload Your Own"],
                             key="bg_source")
         
-        # Show upload field immediately if "Upload Your Own" is selected
+        # ✅ FIXED: Exact emoji match for "Upload Your Own"
         uploaded_image = None
-        if bg_source == " Upload Your Own":
+        if bg_source == "📤 Upload Your Own":
             uploaded_image = st.file_uploader("📤 Upload your photo", type=["jpg", "png", "jpeg"], 
                                              key="upload_img", help="Upload a photo of your product, shop, or dish")
         
@@ -354,27 +316,19 @@ with tab_poster:
                 st.error("Please upload an image first!")
             else:
                 with st.spinner("🎨 Smart Engine designing your poster..."):
-                    # Load base image based on source
                     if bg_source == "📤 Upload Your Own":
-                        if uploaded_image:
-                            base_img = Image.open(uploaded_image)
-                            style_name = "User Upload"
-                            font_path = None
-                        else:
-                            st.error("Please upload an image!")
-                            base_img = None
-                            style_name = ""
-                            font_path = None
+                        base_img = Image.open(uploaded_image)
+                        style_name = "User Upload"
+                        font_path = None
+                        
                     elif bg_source == "🌐 Fetch from Unsplash (Free)":
                         if 'unsplash_images' in st.session_state:
-                            selected_idx = st.selectbox("Select Background:", 
-                                                       range(len(st.session_state['unsplash_images'])),
-                                                       key="unsplash_select")
+                            selected_idx = st.selectbox("Select Background:", range(len(st.session_state['unsplash_images'])), key="unsplash_select")
                             base_img = Image.open(io.BytesIO(st.session_state['unsplash_images'][selected_idx]))
                             style_name = design_style
                             font_path = None
                         else:
-                            st.info(" Click 'Load Free Backgrounds' in the sidebar first!")
+                            st.info("👆 Click 'Load Free Backgrounds' in the sidebar first!")
                             base_img = None
                             style_name = ""
                             font_path = None
@@ -383,10 +337,13 @@ with tab_poster:
                         img_path = os.path.join(base_dir, "assets", template_choice)
                         base_img = Image.open(img_path)
                         style_name = design_style
-                        # Try to download font
-                        fonts = get_available_fonts()
-                        font_key = fonts.get(style_name.split()[0], fonts["Poppins (Modern/Bold)"])
-                        font_path = download_font(style_name.split()[0], font_key["url"])
+                        
+                        # ✅ IMPROVED: Robust font downloading using config mapping
+                        fonts_dict = get_available_fonts()
+                        config = get_style_config(style_name)
+                        font_key = config["font_key"]
+                        font_url = fonts_dict[font_key]["url"]
+                        font_path = download_font(font_key, font_url)
                     
                     if base_img:
                         poster_image = create_smart_poster(base_img, headline, subtext, business_name, style_name, font_path)
@@ -405,6 +362,7 @@ with tab_poster:
                             with st.spinner("✍️ Writing AI Caption..."):
                                 caption = call_openai(f"Write engaging Instagram caption for {business_name} about '{headline} - {subtext}'. Include 5 hashtags.")
                                 st.text_area("AI Caption:", value=caption, height=150, key="poster_caption")
+
 # ==========================================
 # TAB 2: REVIEW RESPONDER
 # ==========================================
