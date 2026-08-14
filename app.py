@@ -363,6 +363,46 @@ def add_gradient_overlay(image, direction="bottom", strength=120):
     return Image.alpha_composite(image, overlay)
 
 
+def analyze_background_brightness(image, region="bottom"):
+    """Average grayscale brightness (0-255) of the region where text
+    will actually sit, so overlay strength can respond to the real
+    photo instead of using one fixed value for every background."""
+    gray = image.convert("L")
+
+    if _HAS_NUMPY:
+        arr = np.array(gray)
+        h = arr.shape[0]
+        if region == "bottom":
+            sample = arr[int(h * 0.35):, :]
+        elif region == "top":
+            sample = arr[: int(h * 0.35), :]
+        else:
+            sample = arr
+        return float(sample.mean())
+
+    # Fallback without numpy: histogram-weighted average over the
+    # full image (region cropping skipped for simplicity).
+    hist = gray.histogram()
+    total = sum(hist)
+    if not total:
+        return 128.0
+    return sum(i * c for i, c in enumerate(hist)) / total
+
+
+def recommended_gradient_strength(brightness):
+    """Map background brightness to a sensible overlay strength.
+    Darker backgrounds need little to no darkening; bright ones need
+    a stronger overlay to keep white/light text readable."""
+    if brightness < 60:
+        return 40
+    elif brightness < 110:
+        return 90
+    elif brightness < 170:
+        return 135
+    else:
+        return 175
+
+
 def crop_to_fill(image, size):
     """Crop image to target aspect ratio without distortion."""
     target_w, target_h = size
@@ -388,15 +428,37 @@ def apply_upload_darkening(image, amount=0.82):
     return ImageEnhance.Brightness(image).enhance(amount)
 
 
-def compute_logo_rect(image_size, logo, position="Top Right", scale=0.18, margin=55):
-    """Compute the logo's placement rect without touching the image."""
+def compute_logo_rect(image_size, logo, position="Top Right", max_width_frac=0.22, max_height_frac=0.14, margin=55):
+    """Compute the logo's placement rect, sized by its own aspect ratio.
+
+    A fixed width percentage (e.g. "18% of canvas width") looks fine for
+    a roughly-square logo, but blows up visually for a wide horizontal
+    logo and eats too much vertical space for a tall one. Instead this
+    caps BOTH the width and the height the logo may occupy, and picks
+    whichever constraint yields the smaller box — so a wide logo gets
+    capped by width, a tall logo gets capped by height, and either way
+    it fits comfortably in its corner.
+    """
     if logo is None:
         return None
 
     iw, ih = image_size
-    target_w = max(80, int(iw * scale))
-    ratio = target_w / logo.width
-    target_h = max(1, int(logo.height * ratio))
+    aspect = logo.width / max(1, logo.height)
+
+    max_w = iw * max_width_frac
+    max_h = ih * max_height_frac
+
+    # Candidate size if width is the binding constraint, and vice versa.
+    w_by_width, h_by_width = max_w, max_w / aspect
+    w_by_height, h_by_height = max_h * aspect, max_h
+
+    if h_by_width <= max_h:
+        target_w, target_h = w_by_width, h_by_width
+    else:
+        target_w, target_h = w_by_height, h_by_height
+
+    target_w = max(60, int(target_w))
+    target_h = max(40, int(target_h))
 
     if position == "Top Left":
         x, y = margin, margin
@@ -593,6 +655,181 @@ def draw_qr_code(image, data, rect):
     return image
 
 
+def validate_layout(image_size, rects):
+    """Check a finished layout for problems.
+
+    rects: dict of name -> (x1,y1,x2,y2) or None, e.g.
+      {"headline": ..., "subtext": ..., "contact": ..., "brand": ...,
+       "logo": ..., "cta": ..., "qr": ...}
+
+    Returns a list of human-readable issue strings (empty = all clear).
+    Every named rect is checked against canvas bounds, and every pair
+    of rects is checked against each other for overlap.
+    """
+    iw, ih = image_size
+    issues = []
+    named = {k: v for k, v in rects.items() if v is not None}
+
+    for name, (x1, y1, x2, y2) in named.items():
+        if x1 < -1 or y1 < -1 or x2 > iw + 1 or y2 > ih + 1:
+            issues.append(f"{name} extends outside the canvas ({(x1, y1, x2, y2)})")
+
+    names = list(named.keys())
+    for i in range(len(names)):
+        for j in range(i + 1, len(names)):
+            a, b = names[i], names[j]
+            if rects_overlap(named[a], named[b]):
+                issues.append(f"{a} overlaps {b}")
+
+    return issues
+
+
+def compute_text_stack_layout(image, font_path, scale, content_top, content_height,
+                               headline, subtext, contact_line, business_name):
+    """Fit fonts, wrap, and stack headline/subtext/contact/brand inside
+    [content_top, content_top + content_height], auto-shrinking fonts
+    (in that priority order) when the nominal sizes don't fit, instead
+    of silently overlapping or overflowing.
+
+    Returns a dict with each block's font/lines/heights, the gaps to
+    use between them, the starting y, and a `fits` flag.
+    """
+    draw = ImageDraw.Draw(image)
+
+    headline_max_w = int(image.width * 0.86)
+    subtext_max_w = int(image.width * 0.80)
+    contact_max_w = int(image.width * 0.78)
+    brand_max_w = int(image.width * 0.72)
+
+    strokes = {
+        "headline": max(2, int(5 * scale)),
+        "subtext": max(2, int(3 * scale)),
+        "contact": max(2, int(2 * scale)),
+        "brand": max(2, int(3 * scale)),
+    }
+    line_spacings = {
+        "headline": max(8, int(14 * scale)),
+        "subtext": max(6, int(10 * scale)),
+        "contact": max(4, int(6 * scale)),
+        "brand": max(5, int(8 * scale)),
+    }
+    max_widths = {
+        "headline": headline_max_w, "subtext": subtext_max_w,
+        "contact": contact_max_w, "brand": brand_max_w,
+    }
+    texts = {
+        "headline": headline.upper(), "subtext": subtext,
+        "contact": contact_line, "brand": business_name.upper(),
+    }
+    has_contact = bool(contact_line.strip())
+
+    start_sizes = {
+        "headline": int(128 * scale), "subtext": int(54 * scale),
+        "contact": int(34 * scale), "brand": int(44 * scale),
+    }
+    min_sizes = {
+        "headline": max(28, int(32 * scale)), "subtext": max(16, int(18 * scale)),
+        "contact": max(12, int(14 * scale)), "brand": max(14, int(16 * scale)),
+    }
+    shrink_step = max(2, int(4 * scale))
+    # Priority order per the requested cascade: headline first, then
+    # subtext, then contact, then brand.
+    order = ["headline", "subtext", "contact", "brand"]
+
+    current_sizes = dict(start_sizes)
+    fonts, lines_map, heights_map, totals = {}, {}, {}, {}
+
+    def refit_and_measure():
+        for name in order:
+            if name == "contact" and not has_contact:
+                fonts[name], lines_map[name], heights_map[name], totals[name] = None, [], [], 0
+                continue
+            font = fit_font(
+                texts[name], font_path, max_widths[name],
+                current_sizes[name], min_sizes[name], stroke_width=strokes[name],
+            )
+            fonts[name] = font
+            lines_map[name], heights_map[name], totals[name] = measure_block(
+                draw, texts[name], font, max_widths[name], strokes[name], line_spacings[name],
+            )
+
+    refit_and_measure()
+
+    min_gap = max(4, int(8 * scale))
+    for _ in range(40):
+        blocks_total = sum(totals.values())
+        n_gaps = 3 if has_contact else 2
+        if blocks_total + n_gaps * min_gap <= content_height:
+            break
+        shrank = False
+        for name in order:
+            if name == "contact" and not has_contact:
+                continue
+            if current_sizes[name] > min_sizes[name]:
+                current_sizes[name] = max(min_sizes[name], current_sizes[name] - shrink_step)
+                shrank = True
+                break
+        if not shrank:
+            break  # everything is already at its floor
+        refit_and_measure()
+
+    blocks_total = sum(totals.values())
+    n_gaps = 3 if has_contact else 2
+    fits = blocks_total + n_gaps * min_gap <= content_height
+
+    nominal_gaps = {
+        "h_s": max(20, int(40 * scale)),
+        "s_c": max(14, int(26 * scale)) if has_contact else 0,
+        "c_b": max(14, int(26 * scale)) if has_contact else max(18, int(34 * scale)),
+    }
+    nominal_gap_total = sum(nominal_gaps.values())
+    available_for_gaps = content_height - blocks_total
+
+    if available_for_gaps >= nominal_gap_total:
+        gaps = dict(nominal_gaps)
+        y = content_top + (available_for_gaps - nominal_gap_total) / 2
+    elif available_for_gaps > 0:
+        ratio = available_for_gaps / nominal_gap_total if nominal_gap_total else 0
+        gaps = {k: (int(v * ratio) if v else 0) for k, v in nominal_gaps.items()}
+        y = content_top
+    else:
+        gaps = {"h_s": min_gap if not fits else 0, "s_c": 0, "c_b": min_gap if not fits else 0}
+        y = content_top
+
+    return {
+        "fonts": fonts, "lines": lines_map, "heights": heights_map,
+        "totals": totals, "gaps": gaps, "start_y": y, "fits": fits,
+        "strokes": strokes, "line_spacings": line_spacings,
+    }
+
+
+def find_best_qr_position(image_size, preferred_position, avoid_rects,
+                           size_ratio=0.15, margin=45, min_ratio=0.09):
+    """Smart QR placement: try the preferred corner, then the other
+    three corners at the normal size; only if every corner collides
+    does it start shrinking the QR (still trying all four corners at
+    each smaller size) before finally falling back to a nudge.
+    """
+    all_positions = ["Bottom Right", "Bottom Left", "Top Right", "Top Left"]
+    order = [preferred_position] + [p for p in all_positions if p != preferred_position]
+    avoid = [r for r in avoid_rects if r]
+
+    ratio = size_ratio
+    while ratio >= min_ratio:
+        for pos in order:
+            rect = compute_qr_rect(image_size, pos, ratio, margin)
+            if not any(rects_overlap(rect, r) for r in avoid):
+                return rect, ratio, False  # False = no fallback needed
+        ratio -= 0.015
+
+    # Nothing fit even at the smallest size — last resort: place at
+    # the preferred corner, smallest size, and nudge away from the
+    # single worst offender.
+    rect = compute_qr_rect(image_size, preferred_position, min_ratio, margin)
+    rect = nudge_rect_away(rect, avoid, preferred_position, image_size)
+    return rect, min_ratio, True
+
+
 def create_smart_poster(
     base_image,
     headline,
@@ -611,18 +848,18 @@ def create_smart_poster(
     darken_background=True,
     contact_line="",
 ):
-    """Main V2 rendering engine — layout-driven.
+    """Main V3 rendering engine — layout-driven and self-correcting.
 
-    Instead of fixed fractional y-positions (which could make contact
-    info collide with the brand name on tall multiline text, or let a
-    CTA/QR/logo overlap), this:
-      1. Reserves top/bottom bands based on the *actual* size of the
-         logo and CTA (if present and positioned there).
-      2. Measures headline/subtext/contact/brand at their fitted font
-         sizes, and stacks+centers them in whatever vertical space is
-         left between those bands.
-      3. Places the QR code last, nudging it away from the logo/CTA
-         if their rects would otherwise overlap.
+    1. Reserves top/bottom bands based on the actual size of the logo
+       and CTA (if positioned there).
+    2. Fits and stacks headline/subtext/contact/brand inside whatever
+       space remains, auto-shrinking fonts (headline -> subtext ->
+       contact -> brand) if the nominal sizes don't fit.
+    3. Validates the resulting layout (validate_layout) and, if it
+       still finds a text/logo or text/CTA overlap, widens the
+       reserved band and re-runs the stack fit — up to a few tries.
+    4. Places the QR last, trying all four corners (avoiding logo,
+       CTA, AND every text block) before shrinking it as a last resort.
     """
     config = STYLE_CONFIGS[style_name]
 
@@ -631,162 +868,161 @@ def create_smart_poster(
     if darken_background:
         image = apply_upload_darkening(image, 0.82)
 
+    if gradient_strength == "auto" or gradient_strength is None:
+        brightness = analyze_background_brightness(image, region="bottom")
+        gradient_strength = recommended_gradient_strength(brightness)
+
     image = add_gradient_overlay(image, direction="bottom", strength=gradient_strength)
 
     scale = image.width / 1080
     outer_margin = max(40, int(50 * scale))
 
-    # --- Pre-compute logo & CTA geometry (needed before we know how
-    # much vertical space is left for the text stack) -----------------
-    logo_rect = compute_logo_rect((image.width, image.height), logo, logo_position, scale=0.18)
+    logo_rect = compute_logo_rect((image.width, image.height), logo, logo_position)
     cta_layout = compute_cta_layout(image.width, cta, font_path)
 
-    top_reserved = outer_margin
-    bottom_reserved = outer_margin
+    # --- Reserve bands + fit the text stack, with a bounded number of
+    # corrective retries if validation still finds an overlap ------------
+    top_pad_extra = 0
+    bottom_pad_extra = 0
+    stack = None
+    headline_rect = subtext_rect = contact_rect = brand_rect = None
 
-    if logo_rect is not None:
-        if logo_position.startswith("Top"):
-            top_reserved = max(top_reserved, (logo_rect[3] - 0) + outer_margin)
-        else:
-            bottom_reserved = max(bottom_reserved, (image.height - logo_rect[1]) + outer_margin)
+    for attempt in range(3):
+        top_reserved = outer_margin + top_pad_extra
+        bottom_reserved = outer_margin + bottom_pad_extra
 
-    cta_y = None
-    cta_rect = None
-    if cta_layout is not None:
-        if cta_position == "Top":
-            cta_y = top_reserved
-            cta_rect = cta_rect_for_y(cta_layout, cta_y)
-            top_reserved = max(top_reserved, cta_rect[3] + outer_margin)
-        else:
-            cta_y = image.height - bottom_reserved - cta_layout["box_h"]
-            cta_rect = cta_rect_for_y(cta_layout, cta_y)
-            bottom_reserved = max(bottom_reserved, (image.height - cta_rect[1]) + outer_margin)
+        if logo_rect is not None:
+            if logo_position.startswith("Top"):
+                top_reserved = max(top_reserved, (logo_rect[3]) + outer_margin)
+            else:
+                bottom_reserved = max(bottom_reserved, (image.height - logo_rect[1]) + outer_margin)
 
-    content_top = top_reserved
-    content_bottom = image.height - bottom_reserved
-    content_height = max(80, content_bottom - content_top)
+        cta_y = None
+        cta_rect = None
+        if cta_layout is not None:
+            if cta_position == "Top":
+                cta_y = top_reserved
+                cta_rect = cta_rect_for_y(cta_layout, cta_y)
+                top_reserved = max(top_reserved, cta_rect[3] + outer_margin)
+            else:
+                cta_y = image.height - bottom_reserved - cta_layout["box_h"]
+                cta_rect = cta_rect_for_y(cta_layout, cta_y)
+                bottom_reserved = max(bottom_reserved, (image.height - cta_rect[1]) + outer_margin)
 
-    # --- Fit fonts for each text block --------------------------------
-    headline_stroke = max(2, int(5 * scale))
-    subtext_stroke = max(2, int(3 * scale))
-    contact_stroke = max(2, int(2 * scale))
-    brand_stroke = max(2, int(3 * scale))
+        content_top = top_reserved
+        content_bottom = image.height - bottom_reserved
+        content_height = max(80, content_bottom - content_top)
 
-    headline_max_w = int(image.width * 0.86)
-    subtext_max_w = int(image.width * 0.80)
-    contact_max_w = int(image.width * 0.78)
-    brand_max_w = int(image.width * 0.72)
-
-    headline_font = fit_font(
-        headline.upper(), font_path, headline_max_w,
-        int(128 * scale), max(36, int(42 * scale)), stroke_width=headline_stroke,
-    )
-    subtext_font = fit_font(
-        subtext, font_path, subtext_max_w,
-        int(54 * scale), max(24, int(24 * scale)), stroke_width=subtext_stroke,
-    )
-    brand_font = fit_font(
-        business_name.upper(), font_path, brand_max_w,
-        int(44 * scale), max(22, int(22 * scale)), stroke_width=brand_stroke,
-    )
-    contact_font = None
-    if contact_line.strip():
-        contact_font = fit_font(
-            contact_line, font_path, contact_max_w,
-            int(34 * scale), max(18, int(18 * scale)), stroke_width=contact_stroke,
+        stack = compute_text_stack_layout(
+            image, font_path, scale, content_top, content_height,
+            headline, subtext, contact_line, business_name,
         )
 
-    # --- Measure each block (no drawing yet) ---------------------------
+        # Compute the resulting bounding rect of each text block (for
+        # validation and later QR-avoidance) without drawing yet.
+        def block_rect(name, top_y):
+            lines = stack["lines"][name]
+            if not lines:
+                return None, top_y
+            heights = stack["heights"][name]
+            font = stack["fonts"][name]
+            stroke = stack["strokes"][name]
+            spacing = stack["line_spacings"][name]
+            tmp_draw = ImageDraw.Draw(image)
+            max_w = max(get_text_size(tmp_draw, ln, font, stroke)[0] for ln in lines)
+            total_h = sum(heights) + spacing * (len(lines) - 1)
+            x1 = (image.width - max_w) / 2
+            rect = (x1, top_y, x1 + max_w, top_y + total_h)
+            return rect, top_y + total_h
+
+        y = stack["start_y"]
+        headline_rect, y = block_rect("headline", y)
+        y += stack["gaps"]["h_s"]
+        subtext_rect, y = block_rect("subtext", y)
+        if stack["totals"]["contact"]:
+            y += stack["gaps"]["s_c"]
+            contact_rect, y = block_rect("contact", y)
+        else:
+            contact_rect = None
+        y += stack["gaps"]["c_b"]
+        brand_rect, _ = block_rect("brand", y)
+
+        issues = validate_layout(
+            (image.width, image.height),
+            {
+                "headline": headline_rect, "subtext": subtext_rect,
+                "contact": contact_rect, "brand": brand_rect,
+                "logo": logo_rect, "cta": cta_rect,
+            },
+        )
+
+        # Only text-vs-(logo/cta) overlaps are worth retrying for —
+        # those mean our reserved band was too small. Anything else
+        # (e.g. a genuinely tiny canvas) won't be fixed by more margin.
+        text_names = {"headline", "subtext", "contact", "brand"}
+        band_issues = [
+            i for i in issues
+            if ("logo" in i or "cta" in i) and any(t in i for t in text_names)
+        ]
+        if not band_issues or attempt == 2:
+            break
+
+        # Widen whichever band is implicated and try again.
+        if any("logo" in i for i in band_issues) and logo_rect is not None:
+            if logo_position.startswith("Top"):
+                top_pad_extra += max(20, int(30 * scale))
+            else:
+                bottom_pad_extra += max(20, int(30 * scale))
+        if any("cta" in i for i in band_issues) and cta_layout is not None:
+            if cta_position == "Top":
+                top_pad_extra += max(20, int(30 * scale))
+            else:
+                bottom_pad_extra += max(20, int(30 * scale))
+
+    # --- Draw the text stack ---------------------------------------------
     draw = ImageDraw.Draw(image)
-
-    headline_lines, headline_heights, headline_total = measure_block(
-        draw, headline.upper(), headline_font, headline_max_w,
-        headline_stroke, max(8, int(14 * scale)),
-    )
-    subtext_lines, subtext_heights, subtext_total = measure_block(
-        draw, subtext, subtext_font, subtext_max_w,
-        subtext_stroke, max(6, int(10 * scale)),
-    )
-    contact_lines, contact_heights, contact_total = ([], [], 0)
-    if contact_font is not None:
-        contact_lines, contact_heights, contact_total = measure_block(
-            draw, contact_line, contact_font, contact_max_w,
-            contact_stroke, max(4, int(6 * scale)),
-        )
-    brand_lines, brand_heights, brand_total = measure_block(
-        draw, business_name.upper(), brand_font, brand_max_w,
-        brand_stroke, max(5, int(8 * scale)),
-    )
-
-    blocks_total = headline_total + subtext_total + contact_total + brand_total
-
-    # Nominal gaps between blocks (scaled), only counted where both
-    # neighboring blocks actually exist.
-    gap_h_s = max(20, int(40 * scale))
-    gap_s_c = max(14, int(26 * scale)) if contact_total else 0
-    gap_c_b = max(14, int(26 * scale)) if contact_total else max(18, int(34 * scale))
-    nominal_gap_total = gap_h_s + gap_s_c + gap_c_b
-
-    available_for_gaps = content_height - blocks_total
-    if available_for_gaps >= nominal_gap_total:
-        # Plenty of room: use nominal gaps and center the whole stack.
-        extra = available_for_gaps - nominal_gap_total
-        y = content_top + extra / 2
-    elif available_for_gaps > 0:
-        # Tight but fits: shrink gaps proportionally instead of
-        # overlapping the contact line into the brand name.
-        gap_ratio = available_for_gaps / nominal_gap_total
-        gap_h_s = max(6, int(gap_h_s * gap_ratio))
-        gap_s_c = int(gap_s_c * gap_ratio) if gap_s_c else 0
-        gap_c_b = max(6, int(gap_c_b * gap_ratio))
-        y = content_top
-    else:
-        # Overflow even with zero gaps — best effort, start at content_top.
-        gap_h_s = gap_s_c = 0
-        gap_c_b = 4
-        y = content_top
-
-    # --- Draw the stack --------------------------------------------------
+    y = stack["start_y"]
     y = draw_block_top_aligned(
-        image, draw, headline_lines, headline_heights, y,
-        headline_font, config["headline"], config["outline"],
-        stroke_width=headline_stroke, line_spacing=max(8, int(14 * scale)),
+        image, draw, stack["lines"]["headline"], stack["heights"]["headline"], y,
+        stack["fonts"]["headline"], config["headline"], config["outline"],
+        stroke_width=stack["strokes"]["headline"], line_spacing=stack["line_spacings"]["headline"],
     )
-    y += gap_h_s
+    y += stack["gaps"]["h_s"]
 
     y = draw_block_top_aligned(
-        image, draw, subtext_lines, subtext_heights, y,
-        subtext_font, config["subtext"], config["outline"],
-        stroke_width=subtext_stroke, line_spacing=max(6, int(10 * scale)),
+        image, draw, stack["lines"]["subtext"], stack["heights"]["subtext"], y,
+        stack["fonts"]["subtext"], config["subtext"], config["outline"],
+        stroke_width=stack["strokes"]["subtext"], line_spacing=stack["line_spacings"]["subtext"],
     )
 
-    if contact_total:
-        y += gap_s_c
+    if stack["totals"]["contact"]:
+        y += stack["gaps"]["s_c"]
         y = draw_block_top_aligned(
-            image, draw, contact_lines, contact_heights, y,
-            contact_font, config["subtext"], config["outline"],
-            stroke_width=contact_stroke, line_spacing=max(4, int(6 * scale)),
+            image, draw, stack["lines"]["contact"], stack["heights"]["contact"], y,
+            stack["fonts"]["contact"], config["subtext"], config["outline"],
+            stroke_width=stack["strokes"]["contact"], line_spacing=stack["line_spacings"]["contact"],
         )
 
-    y += gap_c_b
+    y += stack["gaps"]["c_b"]
     draw_block_top_aligned(
-        image, draw, brand_lines, brand_heights, y,
-        brand_font, config["brand"], config["outline"],
-        stroke_width=brand_stroke, line_spacing=max(5, int(8 * scale)),
+        image, draw, stack["lines"]["brand"], stack["heights"]["brand"], y,
+        stack["fonts"]["brand"], config["brand"], config["outline"],
+        stroke_width=stack["strokes"]["brand"], line_spacing=stack["line_spacings"]["brand"],
     )
 
-    # --- Logo & CTA (rects were already computed above) -----------------
+    # --- Logo & CTA ---------------------------------------------------------
     if logo is not None:
         image = add_logo(image, logo, logo_rect)
 
     if cta_layout is not None:
         image = draw_cta(image, cta, config["accent"], cta_layout, cta_y)
 
-    # --- QR last, nudged away from logo/CTA if it would overlap them ----
+    # --- QR last: avoid logo, CTA, AND every text block, trying all four
+    # corners before shrinking -------------------------------------------
     if qr_data.strip():
-        qr_rect = compute_qr_rect((image.width, image.height), qr_position, size_ratio=0.15)
-        qr_rect = nudge_rect_away(
-            qr_rect, [logo_rect, cta_rect], qr_position, (image.width, image.height),
+        avoid_rects = [logo_rect, cta_rect, headline_rect, subtext_rect, contact_rect, brand_rect]
+        qr_rect, used_ratio, had_to_shrink = find_best_qr_position(
+            (image.width, image.height), qr_position, avoid_rects, size_ratio=0.15,
         )
         image = draw_qr_code(image, qr_data, qr_rect)
 
@@ -966,13 +1202,22 @@ with tab_poster:
             ["Bottom Right", "Bottom Left", "Top Right", "Top Left"],
         )
 
-        gradient_strength = st.slider(
-            "Gradient Strength",
-            min_value=0,
-            max_value=220,
-            value=115,
-            step=5,
+        auto_gradient = st.checkbox(
+            "Auto-detect overlay strength",
+            value=True,
+            help="Analyzes how bright the background photo is and picks a "
+                 "readable overlay automatically. Turn off to set it manually.",
         )
+        if auto_gradient:
+            gradient_strength = "auto"
+        else:
+            gradient_strength = st.slider(
+                "Gradient Strength",
+                min_value=0,
+                max_value=220,
+                value=115,
+                step=5,
+            )
 
         uploaded_image = None
         selected_template = None
